@@ -60,7 +60,8 @@ final class ContinueRow {
     }
 
     static final int MAX_CARDS = 12;
-    private static final float CARD_W_DP = 156f, CARD_H_DP = 88f, GAP_DP = 22f;
+    /** Poster-shaped cards, 2:3. */
+    private static final float CARD_W_DP = 112f, CARD_H_DP = 168f, GAP_DP = 20f;
     private static final float FOCUS_SCALE = 1.08f;
     private static final int STREMIO_PURPLE = 0xFF7B5BF5;
 
@@ -453,7 +454,9 @@ final class ContinueRow {
     // ---- pictures -----------------------------------------------------------------------------------------------
 
     private void loadCardArt(WatchHistory.Item item, ImageView art, View card) {
-        String src = !item.art.isEmpty() ? item.art : item.cover;
+        // The poster; a video with none (YouTube) shows the middle of its picture.
+        String poster = WatchHistory.posterOf(item);
+        String src = !poster.isEmpty() ? poster : !item.art.isEmpty() ? item.art : item.cover;
         art.setTag(src);
         if (src.isEmpty()) {
             Drawable banner = appBanner(item.pkg);

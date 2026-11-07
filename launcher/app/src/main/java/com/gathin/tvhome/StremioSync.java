@@ -61,6 +61,7 @@ final class StremioSync {
         prefs(ctx).edit().putBoolean(KEY_CONNECT_HIDDEN, true).apply();
     }
 
+
     static Set<String> dismissed(Context ctx) {
         return new HashSet<>(prefs(ctx).getStringSet(KEY_DISMISSED, new HashSet<>()));
     }
@@ -138,6 +139,7 @@ final class StremioSync {
             it.updated = time(state.optString("lastWatched"), li.optString("_mtime"));
             it.art = id.startsWith("tt") ? "https://images.metahub.space/background/medium/" + id + "/img" : li.optString("poster");
             it.cover = id.startsWith("tt") ? "https://images.metahub.space/background/large/" + id + "/img" : it.art;
+            it.poster = id.startsWith("tt") ? "https://images.metahub.space/poster/medium/" + id + "/img" : li.optString("poster");
             it.link = "stremio:///detail/" + Uri.encode(type) + "/" + Uri.encode(id)
                     + (videoId.isEmpty() ? "" : "/" + Uri.encode(videoId));
             items.add(it);
@@ -227,6 +229,7 @@ final class StremioSync {
         String thumb = newest.optString("thumbnail");
         it.art = thumb.startsWith("http") ? thumb : "https://images.metahub.space/background/medium/" + id + "/img";
         it.cover = "https://images.metahub.space/background/large/" + id + "/img";
+        it.poster = id.startsWith("tt") ? "https://images.metahub.space/poster/medium/" + id + "/img" : li.optString("poster");
         it.link = "stremio:///detail/series/" + Uri.encode(id) + "/" + Uri.encode(videoId);
         return it;
     }

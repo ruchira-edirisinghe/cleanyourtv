@@ -18,6 +18,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.Set;
 
 /**
@@ -51,6 +53,8 @@ final class WatchHistory {
         String art = "";
         /** A big cover picture from the web for the top banner (CoverArt), or empty. */
         String cover = "";
+        /** A portrait poster for the card (Stremio's own), or empty: see posterOf. */
+        String poster = "";
         /** An ACTION_VIEW link that opens it in its app (Stremio), or empty to open the app itself. */
         String link = "";
         long position, duration;
@@ -66,7 +70,7 @@ final class WatchHistory {
 
         JSONObject toJson() throws JSONException {
             return new JSONObject().put("key", key).put("source", source).put("pkg", pkg).put("title", title)
-                    .put("subtitle", subtitle).put("art", art).put("cover", cover).put("link", link).put("position", position)
+                    .put("subtitle", subtitle).put("art", art).put("cover", cover).put("poster", poster).put("link", link).put("position", position)
                     .put("duration", duration).put("updated", updated).put("isNew", isNew);
         }
 
@@ -79,6 +83,7 @@ final class WatchHistory {
             it.subtitle = o.optString("subtitle");
             it.art = o.optString("art");
             it.cover = o.optString("cover");
+            it.poster = o.optString("poster");
             it.link = o.optString("link");
             it.position = o.optLong("position");
             it.duration = o.optLong("duration");
@@ -86,6 +91,19 @@ final class WatchHistory {
             it.isNew = o.optBoolean("isNew");
             return it;
         }
+    }
+
+    /** A Cinemeta picture link, which names the title's IMDb id. */
+    private static final Pattern METAHUB = Pattern.compile("images\\.metahub\\.space/[a-z]+/[a-z]+/(tt\\d+)/");
+
+    /**
+     * The item's poster: its own, or for a film or show whose backdrop came from Cinemeta (found by name, or Stremio's)
+     * the poster under the same id; empty when it has none, such as a YouTube video.
+     */
+    static String posterOf(Item it) {
+        if (!it.poster.isEmpty()) return it.poster;
+        Matcher m = METAHUB.matcher(it.cover + " " + it.art);
+        return m.find() ? "https://images.metahub.space/poster/medium/" + m.group(1) + "/img" : "";
     }
 
     static File appFile(Context ctx) {
