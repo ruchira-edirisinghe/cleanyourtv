@@ -528,7 +528,7 @@
          row's "Connect Stremio" card has linked the account. Recording needs the notification listener:
          cmd notification allow_listener com.gathin.tvhome/.WatchListener. Needs dock_row, and the internet for
          Stremio and for pictures given as a link. Can also be set with "continue_watching" in a theme's config.json. -->
-    <bool name="continue_watching">false</bool>
+    <bool name="continue_watching">true</bool>
     <!-- Apps whose playback never goes into the Continue watching row: music players, whose paused song is no
          show. Can also be set with "continue_skip". -->
     <string-array name="continue_skip" translatable="false">
