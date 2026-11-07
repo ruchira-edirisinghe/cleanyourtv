@@ -9,7 +9,6 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Outline;
-import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -109,7 +108,7 @@ final class ContinueRow {
         header.setTextColor(0xB3FFFFFF);
         header.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
         header.setLetterSpacing(0.14f);
-        header.setTypeface(Typeface.create(activity.getString(R.string.font_medium), Typeface.NORMAL));
+        header.setTypeface(UiFont.get(activity, R.string.font_medium));
         view.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         scroller = new HorizontalScrollView(activity);
@@ -382,7 +381,7 @@ final class ContinueRow {
         t.setSingleLine(true);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
         t.setIncludeFontPadding(false);
-        t.setTypeface(Typeface.create(activity.getString(medium ? R.string.font_medium : R.string.font_body), Typeface.NORMAL));
+        t.setTypeface(UiFont.get(activity, medium ? R.string.font_medium : R.string.font_body));
         return t;
     }
 
