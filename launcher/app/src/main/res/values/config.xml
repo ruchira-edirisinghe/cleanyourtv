@@ -411,6 +411,13 @@
     <!-- Every app tile is its icon on a card tinted from that icon, name only under the focused tile,
          instead of each app's own banner. Off by default; a theme can set "uniform_tiles": true. -->
     <bool name="uniform_tiles">false</bool>
+    <!-- Tiles per row in the grid under the dock; 0 keeps it at columns. Lets the dock keep its big banners (5 a row)
+         while the grid below shows more, smaller tiles (7 a row). Needs dock_row, not single_row. Can also be set with
+         "grid_columns" in a theme's config.json. -->
+    <integer name="grid_columns">7</integer>
+    <!-- The grid under the dock as rounded square app icons with a thin border, each with its name under it, instead
+         of the apps' banners. The dock keeps its banners. Can also be set with "icon_grid" in a theme's config.json. -->
+    <bool name="icon_grid">true</bool>
     <!-- Optional direct Home picker in the app library: OK toggles the checkmark, checked apps first.
          Off by default; a theme can set "app_library_selection": true (also needs app_library). -->
     <bool name="app_library_selection">false</bool>

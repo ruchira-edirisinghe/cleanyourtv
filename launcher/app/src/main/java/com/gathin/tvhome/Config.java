@@ -277,6 +277,10 @@ final class Config {
     final boolean singleRow;
     /** With single_row, the band runs behind every app in the row, not only the dock apps (config.xml, dock_band_all). */
     final boolean dockBandAll;
+    /** Tiles per row in the grid under the dock, 0 for columns (config.xml, grid_columns). Set by load(). */
+    int gridColumns;
+    /** The grid under the dock as rounded square icons with their names (config.xml, icon_grid). Set by load(). */
+    boolean iconGrid;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, List<String> libraryExcludedApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -537,6 +541,8 @@ final class Config {
         String glassStyle = res.getString(R.string.glass_style);
         boolean singleRow = res.getBoolean(R.bool.single_row);
         boolean dockBandAll = res.getBoolean(R.bool.dock_band_all);
+        int gridColumns = res.getInteger(R.integer.grid_columns);
+        boolean iconGrid = res.getBoolean(R.bool.icon_grid);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -650,6 +656,8 @@ final class Config {
             clockGlow = bool(json, "clock_glow", clockGlow);
             singleRow = bool(json, "single_row", singleRow);
             dockBandAll = bool(json, "dock_band_all", dockBandAll);
+            gridColumns = integer(json, "grid_columns", gridColumns, 0, 8);
+            iconGrid = bool(json, "icon_grid", iconGrid);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
         }
@@ -701,7 +709,7 @@ final class Config {
         Festival festival = json == null ? Festival.NONE : Festival.parse(festivalName(json),
                 string(json, "festival_until", ""), string(json, "greeting", ""), string(json, "accent_color", ""));
 
-        return new Config(dock, fillDock, hidden, libraryApps, libraryExcludedApps, liveTv, liveTvAction, liveTvInputId, packageMap(launchActions), packageMap(appLabels),
+        Config built = new Config(dock, fillDock, hidden, libraryApps, libraryExcludedApps, liveTv, liveTvAction, liveTvInputId, packageMap(launchActions), packageMap(appLabels),
                 packageMap(appBanners), panelService, panelAction, panelExtra, coocaaSources, inputAction, inputSources, inputUriScheme, Math.max(1, columns),
                 Math.max(0, rowsBelow), animations, advancedEffects, shamsi, greetingName, moduleCards, reducedMotion, bootToLiveTv,
                 openOnStartChoice, dockTitle, dockRow, topMenu, launcherSettingsButton, reorderButton, showNetworkPill, showInputsPill,
@@ -716,6 +724,9 @@ final class Config {
                 Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly, inputsCecStateOnly,
                 Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap);
+        built.gridColumns = Math.max(0, Math.min(8, gridColumns));
+        built.iconGrid = iconGrid;
+        return built;
     }
 
     /**

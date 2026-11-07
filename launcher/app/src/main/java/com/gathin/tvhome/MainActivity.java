@@ -110,6 +110,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     static final String ACTION_VIEW_INPUTS = "com.android.tv.action.VIEW_INPUTS";
     /** Tiles per row and dock slots (res/values/config.xml, columns). Set in onCreate. */
     static int COLUMNS = 4;
+    /** Tiles per row in the grid under the dock (grid_columns); COLUMNS unless a theme sets its own. Set in onCreate. */
+    static int GRID_COLUMNS = 4;
     private boolean rtlAppGrid;
     private static final long MINUTE_MS = 60_000L;
     private static final long STATS_MS = 10_000L;
@@ -472,6 +474,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         settingsKeycodes = cfg.settingsKeycodes;
         settingsKeyPanel = cfg.settingsKeyPanel;
         COLUMNS = cfg.columns;
+        GRID_COLUMNS = cfg.dockRow && !cfg.singleRow && cfg.gridColumns > 0 ? cfg.gridColumns : COLUMNS;
         animations = cfg.animations;
         advancedEffects = cfg.animations && cfg.advancedEffects;
         reducedMotion = cfg.reducedMotion;
@@ -612,7 +615,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         rtlAppGrid = getResources().getBoolean(R.bool.rtl_app_grid);
         // Mirror only the app grid; the header and other locales keep their own layouts.
         // single_row: one span laid out sideways, so the same adapter, glass and dock band serve a scrolling row.
-        grid.setLayoutManager(new GridLayoutManager(this, singleRow ? 1 : COLUMNS,
+        final int spans = GridRows.spanCount(COLUMNS, GRID_COLUMNS);
+        grid.setLayoutManager(new GridLayoutManager(this, singleRow ? 1 : spans,
                 singleRow ? RecyclerView.HORIZONTAL : RecyclerView.VERTICAL, false) {
             @Override
             protected boolean isLayoutRTL() {
@@ -665,7 +669,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         });
         ((GridLayoutManager) grid.getLayoutManager()).setSpanSizeLookup(new GridLayoutManager.SpanSizeLookup() {
-            @Override public int getSpanSize(int position) { return !singleRow && adapter != null && adapter.isLibraryAt(position) ? COLUMNS : 1; }
+            @Override public int getSpanSize(int position) {
+                if (singleRow) return 1;
+                if (adapter != null && adapter.isLibraryAt(position)) return spans;
+                // grid_columns: the dock's tiles and the grid's share one span count, each row filling it.
+                return position < COLUMNS ? spans / COLUMNS : spans / GRID_COLUMNS;
+            }
         });
         grid.setHasFixedSize(true);
         grid.setItemAnimator(null);
@@ -1694,13 +1703,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         // A single row has no rows to move between: Up and Down leave the carried tile where it is.
         if (singleRow && (keyCode == KeyEvent.KEYCODE_DPAD_UP || keyCode == KeyEvent.KEYCODE_DPAD_DOWN)) return;
-        int to;
+        final int to;
         // rtl_app_grid (Hebrew) mirrors the grid: position 0 is on the right, so Left moves towards the end.
         if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) to = rtlAppGrid ? from + 1 : from - 1;
         else if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) to = rtlAppGrid ? from - 1 : from + 1;
-        else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) to = from - COLUMNS;
-        else if (from + COLUMNS < n) to = from + COLUMNS;
-        else to = from / COLUMNS < (n - 1) / COLUMNS ? n - 1 : from;
+        else if (keyCode == KeyEvent.KEYCODE_DPAD_UP) to = GridRows.up(from, COLUMNS, GRID_COLUMNS);
+        else to = Math.max(from, GridRows.down(from, n, COLUMNS, GRID_COLUMNS));   // -1 on the last row: stay
         if (to < 0 || to >= n || to == from) return;
         keepScroll(() -> adapter.move(from, to));
         // The owner carries this tile: where it lands decides whether it is in the dock, not dock_apps (#499).
@@ -1822,7 +1830,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             lp.height = (int) h;
             glass.setLayoutParams(lp);
             // GlassView draws its slab inset by pad, i.e. exactly over the zoomed tile: same corners as the tile.
-            glass.setRadius(AppAdapter.cornerRadius(card.getWidth(), density) * scale);
+            glass.setRadius(AppAdapter.cardRadius(card, density) * scale);
         }
         glassCardW = card.getWidth();
         glassCardRect.set(r);
@@ -2444,20 +2452,23 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 return true;
             }
             // In the dock, the last app is the row's end: the empty slots after it take no focus.
-            int rowCount = position < COLUMNS ? Math.min(count, adapter.dockFilled()) : count;
-            return GridNavigation.atHorizontalEdge(position, rowCount, COLUMNS,
+            if (position < COLUMNS) {
+                return GridNavigation.atHorizontalEdge(position, Math.min(count, adapter.dockFilled()), COLUMNS,
+                        rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
+            }
+            // The grid under the dock counts its columns from its own first tile (grid_columns may differ).
+            return GridNavigation.atHorizontalEdge(position - COLUMNS, count - COLUMNS, GRID_COLUMNS,
                     rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            if (position < COLUMNS) return false;          // dock row: let focus move to the top bar
-            target = position - COLUMNS;
+            target = GridRows.up(position, COLUMNS, GRID_COLUMNS);
+            if (target < 0) return false;          // dock row: let focus move to the top bar
         } else {
-            int lastRowStart = ((count - 1) / COLUMNS) * COLUMNS;
-            if (position >= lastRowStart) {
+            target = GridRows.down(position, count, COLUMNS, GRID_COLUMNS);
+            if (target < 0) {
                 if (adapter.isLibraryAt(count)) focusLibrary();
                 return true;
             }
-            target = Math.min(position + COLUMNS, count - 1);
         }
         focusTile(target);
         // The default focus search clicks for Left/Right; Up/Down are handled here, so click for them too.
@@ -2604,8 +2615,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override public void onLibraryUp() {
         if (adapter.appCount() == 0) { firstTopButton().requestFocus(); return; }
-        int lastRow = ((adapter.appCount() - 1) / COLUMNS) * COLUMNS;
-        focusTile(Math.min(lastRow + lastFocused % COLUMNS, adapter.appCount() - 1));
+        int n = adapter.appCount();
+        int lastRow = GridRows.lastRowStart(n, COLUMNS, GRID_COLUMNS);
+        int rowLength = lastRow < COLUMNS ? COLUMNS : GRID_COLUMNS;
+        focusTile(Math.min(lastRow + GridRows.column(lastFocused, COLUMNS, GRID_COLUMNS) % rowLength, n - 1));
     }
 
     private void focusLibrary() {

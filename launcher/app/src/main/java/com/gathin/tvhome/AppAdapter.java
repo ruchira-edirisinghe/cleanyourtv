@@ -14,6 +14,7 @@ import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.drawable.AdaptiveIconDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
@@ -220,6 +221,14 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean uniformTiles;
     /** Packages drawn from their icon and name even when they have a banner (config.xml icon_tiles). */
     private final Set<String> iconTiles;
+    /** Tiles per row in the grid under the dock (config.xml grid_columns); dockSize when it has no own count. */
+    private final int gridColumns;
+    /** The grid under the dock as rounded square icons with their names (config.xml icon_grid). */
+    private final boolean iconGrid;
+    /** View type of a grid tile under the dock when it is laid out apart from the dock (grid_columns, icon_grid). */
+    private static final int TYPE_GRID = 2;
+    /** icon_grid: the square's share of its column, the icon's share of a plain-icon square, the corner radius. */
+    static final float SQUARE_SHARE = 0.64f, SQUARE_ICON_SHARE = 0.60f, SQUARE_RADIUS = 0.23f;
     private final List<Entry> items = new ArrayList<>();
 
     AppAdapter(Context ctx, TileListener listener, int dockSize, Config cfg) {
@@ -248,6 +257,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.appLabels = cfg.appLabels;
         this.appBanners = cfg.appBanners;
         this.uniformTiles = cfg.uniformTiles;
+        boolean grid = cfg.dockRow && !cfg.singleRow;
+        this.gridColumns = grid && cfg.gridColumns > 0 ? cfg.gridColumns : dockSize;
+        this.iconGrid = grid && cfg.iconGrid;
         // Tiles keep their identity across reload(), so a focused tile stays on its app instead of
         // its view being rebound to whatever app now sits in that slot.
         setHasStableIds(true);
@@ -304,7 +316,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             }
             // The icon is only drawn (and sampled for the glow) when there is no banner, so a tile with a
             // banner skips loading and decoding it.
-            Drawable icon = banner == null ? ri.loadIcon(pm) : null;
+            Drawable icon = banner == null || (iconGrid && card == null) ? loadIcon(pm, ri) : null;
             if (card != null) {
                 fresh.add(new Entry(Entry.CARD, label, component, banner, icon, card.caption, card.accent));
             } else {
@@ -354,6 +366,22 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         icon.setBounds((w - side) / 2, (h - side) / 2, (w + side) / 2, (h + side) / 2);
         icon.draw(canvas);
         return new android.graphics.drawable.BitmapDrawable(ctx.getResources(), bmp);
+    }
+
+    /** The app's icon at the largest density it ships, so a big icon_grid square stays sharp. */
+    private Drawable loadIcon(PackageManager pm, ResolveInfo ri) {
+        if (iconGrid) {
+            int id = ri.getIconResource();
+            if (id != 0) {
+                try {
+                    Resources resources = pm.getResourcesForApplication(ri.activityInfo.applicationInfo);
+                    Drawable d = resources.getDrawableForDensity(id, DisplayMetrics.DENSITY_XXXHIGH, null);
+                    if (d != null) return d;
+                } catch (PackageManager.NameNotFoundException | Resources.NotFoundException ignored) {
+                }
+            }
+        }
+        return ri.loadIcon(pm);
     }
 
     /** A banner_* drawable bundled with the launcher, or null for none or a name that is not one. */
@@ -415,6 +443,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         float density = parent.getResources().getDisplayMetrics().density;
         int width = parent.getWidth() > 0 ? parent.getWidth() : parent.getMeasuredWidth();
         int inner = width - parent.getPaddingLeft() - parent.getPaddingRight();
+        if (viewType == TYPE_GRID) return gridHolder(v, inner, density);
         int w = tileWidthPx(inner, parent.getHeight(), dockSize, rowsBelowDock, dockTitle, dockRow, density), h = tileHeightPx(w);
         View card = v.findViewById(R.id.card);
         ViewGroup.LayoutParams cardLp = card.getLayoutParams();
@@ -455,6 +484,52 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return new Holder(v, listener, animations, advancedEffects, reducedMotion, restNameAlpha, focusOvershoot);
     }
 
+    /**
+     * A tile in the grid under the dock, sized to the grid's own columns: with icon_grid a rounded square whose
+     * name always shows under it, else a banner tile as wide as a grid column allows.
+     */
+    private Holder gridHolder(View v, int inner, float density) {
+        int cell = inner / Math.max(1, gridColumns);
+        int fit = Math.round(tileWidthPx(inner, gridColumns, density));
+        int w, h;
+        if (iconGrid) {
+            w = h = Math.max(Math.round(56 * density), Math.min((int) ((cell - 12 * density) / FOCUS_SCALE),
+                    Math.round(cell * SQUARE_SHARE)));
+        } else {
+            w = fit;
+            h = tileHeightPx(w);
+        }
+        View card = v.findViewById(R.id.card);
+        ViewGroup.LayoutParams cardLp = card.getLayoutParams();
+        cardLp.width = w;
+        cardLp.height = h;
+        card.setLayoutParams(cardLp);
+        TextView name = v.findViewById(R.id.name);
+        ViewGroup.MarginLayoutParams nameLp = (ViewGroup.MarginLayoutParams) name.getLayoutParams();
+        nameLp.width = iconGrid ? Math.min(cell - Math.round(8 * density), Math.round(w * 1.5f)) : w;
+        nameLp.topMargin = h + Math.round(7 * density);
+        name.setLayoutParams(nameLp);
+        View icon = v.findViewById(R.id.icon);
+        FrameLayout.LayoutParams iconLp = (FrameLayout.LayoutParams) icon.getLayoutParams();
+        if (iconGrid) {
+            iconLp.width = iconLp.height = Math.round(h * SQUARE_ICON_SHARE);
+            iconLp.bottomMargin = 0;
+            // A thin light rim over whatever the square shows, its picture or its icon on a tinted plate.
+            GradientDrawable rim = new GradientDrawable();
+            rim.setCornerRadius(w * SQUARE_RADIUS);
+            rim.setStroke(Math.max(2, Math.round(1.5f * density)), 0x47FFFFFF);
+            rim.setColor(0x00000000);
+            card.setForeground(rim);
+        } else if (h < Math.round(DESIGN_H_DP * density)) {
+            float scale = (float) h / (DESIGN_H_DP * density);
+            iconLp.width = iconLp.height = Math.round(48f * density * scale);
+            iconLp.bottomMargin = Math.round(14f * density * scale);
+        }
+        icon.setLayoutParams(iconLp);
+        return new Holder(v, listener, animations, advancedEffects, reducedMotion,
+                iconGrid ? 0.8f : restNameAlpha, focusOvershoot);
+    }
+
     @Override
     @SuppressWarnings("deprecation")
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
@@ -481,7 +556,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.name.setVisibility(dockKind && restNameAlpha == 0f ? View.INVISIBLE : View.VISIBLE);
         h.inDock = dockKind;
         boolean focused = h.card.isFocused();   // a rebind after reload() can hit the focused tile
-        h.name.setAlpha(focused ? 1f : restNameAlpha);
+        h.name.setAlpha(focused ? 1f : h.restNameAlpha);
         h.card.setScaleX(focused && animations ? focusScale() : 1f);
         h.card.setScaleY(focused && animations ? focusScale() : 1f);
         h.card.setTranslationY(focused && advancedEffects && !dockKind ? -4f * ctx.getResources().getDisplayMetrics().density : 0f);
@@ -495,7 +570,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             if (e.backdrop == null) e.backdrop = backdrop(e.icon, ambientColorAt(position));
             h.card.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, e.backdrop));
         }
-        if (e.banner != null) {
+        if (iconGrid && h.getItemViewType() == TYPE_GRID) {
+            bindSquare(h, e);
+        } else if (e.banner != null) {
             h.banner.setImageDrawable(e.banner);
             h.banner.setVisibility(View.VISIBLE);
             h.icon.setVisibility(View.GONE);
@@ -523,6 +600,35 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             }
             return true;
         });
+    }
+
+    /**
+     * icon_grid square: an adaptive icon fills it edge to edge; any other icon sits centred on a plate in its own
+     * colour (the uniform_tiles fill); a module card without an icon shows its banner cropped to the square.
+     */
+    private void bindSquare(Holder h, Entry e) {
+        h.label.setVisibility(View.GONE);
+        if (e.icon instanceof AdaptiveIconDrawable) {
+            h.card.setBackground(null);
+            h.banner.setImageDrawable(new FullBleedIcon((AdaptiveIconDrawable) e.icon));
+            h.banner.setVisibility(View.VISIBLE);
+            h.icon.setImageDrawable(null);
+            h.icon.setVisibility(View.GONE);
+            return;
+        }
+        if (e.icon == null && e.banner != null) {
+            h.card.setBackground(h.cardBackground);
+            h.banner.setImageDrawable(e.banner);
+            h.banner.setVisibility(View.VISIBLE);
+            h.icon.setVisibility(View.GONE);
+            return;
+        }
+        if (e.backdrop == null) e.backdrop = backdrop(e.icon, dominantColor(e.icon));
+        h.card.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, e.backdrop));
+        h.banner.setImageDrawable(null);
+        h.banner.setVisibility(View.GONE);
+        h.icon.setImageDrawable(e.icon);
+        h.icon.setVisibility(View.VISIBLE);
     }
 
     /** Opens the tile's activity by explicit component, with no extras: a card can name nothing else. */
@@ -571,7 +677,12 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     boolean isLibraryAt(int position) { return showLibrary && position == items.size(); }
 
-    @Override public int getItemViewType(int position) { return isLibraryAt(position) ? 1 : 0; }
+    @Override public int getItemViewType(int position) {
+        if (isLibraryAt(position)) return 1;
+        // The grid under the dock gets its own tiles when it is laid out differently from the dock.
+        boolean ownGrid = iconGrid || gridColumns != dockSize;
+        return ownGrid && dockRow && !singleRow && position >= dockSize ? TYPE_GRID : 0;
+    }
 
     boolean containsPackage(String pkg) {
         for (Entry entry : items) if (entry.pkg.equals(pkg)) return true;
@@ -899,6 +1010,12 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return 16f * density * Math.min(1f, tileWidthPx / (DESIGN_W_DP * density));
     }
 
+    /** The corner radius a card is drawn with: icon_grid squares are rounder, like app icons. */
+    static float cardRadius(View card, float density) {
+        int w = card.getWidth();
+        return w > 0 && w == card.getHeight() ? w * SQUARE_RADIUS : cornerRadius(w, density);
+    }
+
     static final class Holder extends RecyclerView.ViewHolder {
         final View card;
         /** item_app.xml's tile_bg: the dark card behind an icon tile, or behind a banner that has transparent parts. */
@@ -936,7 +1053,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 @Override
                 public void getOutline(View view, Outline outline) {
                     // 16dp at the design width, scaled down with the tile so small tiles keep the same shape.
-                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), cornerRadius(view.getWidth(), density));
+                    outline.setRoundRect(0, 0, view.getWidth(), view.getHeight(), cardRadius(view, density));
                 }
             });
             card.setClipToOutline(true);
