@@ -43,8 +43,8 @@ Hold OK on a card to remove it, or to disconnect Stremio.
 
 `LiveSaverDream` plays looping animated 4K scenes (synthwave suns, neon cities, pixel-art rooms, firefly forests,
 lantern skies) and dips through black to the next every 75 seconds. Each is shown whole, edge to edge on a 16:9
-screen, never cropped. A glass panel sits at the top centre, like a tablet's lock screen: the time with the weather
-beside it, the date, then the greeting with your name. Every half minute or so a glass card with the poster comes up in
+screen, never cropped. At the top centre, like a tablet's lock screen, stand the time with the weather beside it, the
+date, then the greeting with your name, as raised type with a soft shadow and no panel behind it. Every half minute or so a glass card with the poster comes up in
 a bottom corner for something left part-watched, or a new Stremio episode. Press OK while a card is up to jump back
 into it; any other key ends the screensaver.
 
@@ -65,10 +65,10 @@ Any other `.mp4`, `.webm` or `.mkv` put in the theme folder's `saver/` joins the
 
 ## Liquid glass
 
-`liquid_glass` turns the header into one glass panel (the clock, then the greeting over the date), puts the top
+`liquid_glass` sets the header as raised type with no panel (the clock, then the greeting over the date), puts the top
 buttons in one glass bar with a milky lens on the focused one, and makes the dock band glass too. On Android 13 and
 later the glass shows a softened copy of the picture behind it, bent at the edges like a lens, with light along its
-rim. The screensaver's clock and cards use the same glass, over the video.
+rim. The screensaver's cards use the same glass, over the video.
 
 Clocks are set in Sora, titles in Fraunces and labels in Space Grotesk (all SIL Open Font License), and the Continue
 watching cards show each title's poster.

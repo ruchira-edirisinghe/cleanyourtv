@@ -38,6 +38,9 @@ final class WeatherIcon extends Drawable {
     public void draw(@NonNull Canvas c) {
         Rect b = getBounds();
         float s = Math.min(b.width(), b.height());
+        // A shadow under every shape, so the picture stands off the scene like the raised type beside it.
+        fill.setShadowLayer(s * 0.07f, 0f, s * 0.03f, 0x99000000);
+        line.setShadowLayer(s * 0.07f, 0f, s * 0.03f, 0x99000000);
         c.save();
         c.translate(b.left + (b.width() - s) / 2f, b.top + (b.height() - s) / 2f);
         boolean clear = code <= 1, partly = code == 2, fog = code == 45 || code == 48;

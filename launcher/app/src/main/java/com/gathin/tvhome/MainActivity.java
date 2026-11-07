@@ -2105,9 +2105,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
             }
         }
-        block.setPadding(Math.round(24 * density), Math.round(14 * density), Math.round(26 * density),
-                Math.round(16 * density));
-        block.setBackground(new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, 30 * density, density));
+        // No panel: the clock, greeting and date stand on the picture as raised type (applyDisplayFonts).
+        block.setPadding(Math.round(12 * density), Math.round(10 * density), Math.round(8 * density),
+                Math.round(10 * density));
         if (dockDecoration != null) {
             dockDecoration.setGlass(new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, 0, density), grid);
         }
@@ -2143,6 +2143,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 ((TextView) bar.getChildAt(i)).setTypeface(UiFont.get(this, R.string.font_label));
             }
         }
+        // Raised type, brighter than over the old panel: a dark side under each letter and a soft shadow.
+        greetingColor = 0xE6FFFFFF;
+        greeting.setTextColor(greetingColor);
+        date.setTextColor(0xF2FFFFFF);
+        // Its own width, not the column's: the room DepthShadow leaves beside it would cut the date short.
+        date.getLayoutParams().width = ViewGroup.LayoutParams.WRAP_CONTENT;
+        DepthShadow.apply(clock, 3f, 14f);
+        DepthShadow.apply(findViewById(R.id.ampm), 1.2f, 6f);
+        DepthShadow.apply(greeting, 1f, 6f);
+        DepthShadow.apply(date, 1.5f, 8f);
         if (continueRow != null) continueRow.setDisplayFonts();
     }
 

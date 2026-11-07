@@ -44,8 +44,9 @@ import java.util.concurrent.Executors;
 
 /**
  * The live screensaver: looping animated scenes (the videos in the theme folder's saver/, see ThemeFiles), each shown
- * whole and at its full resolution, dipping through black to the next every so often. A liquid-glass panel at the top
- * centre holds the time, the date and a greeting, like a tablet's lock screen; now and then a glass card with the poster
+ * whole and at its full resolution, dipping through black to the next every so often. At the top centre, like a
+ * tablet's lock screen, the time, the date and a greeting stand on the scene as raised type (DepthShadow), with no
+ * panel behind them; now and then a glass card with the poster
  * of something left part-watched or a new episode (WatchHistory) rises in a bottom corner, and OK opens it. Any other key
  * ends the screensaver. Pick it with `settings put secure screensaver_components com.gathin.tvhome/.LiveSaverDream`.
  */
@@ -140,6 +141,13 @@ public class LiveSaverDream extends DreamService {
         vignette.setBackground(shade);
         root.addView(vignette, match());
 
+        // A soft darkening down from the top edge, so the clock reads over the brightest sky.
+        View scrim = new View(this);
+        scrim.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0x8C000000, 0x33000000, 0x00000000}));
+        root.addView(scrim, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                Math.round(getResources().getDisplayMetrics().heightPixels * 0.45f), Gravity.TOP));
+
         buildIsland();
         buildCard();
         dip = new View(this);
@@ -166,8 +174,7 @@ public class LiveSaverDream extends DreamService {
         island = new LinearLayout(this);
         island.setOrientation(LinearLayout.VERTICAL);
         island.setGravity(Gravity.CENTER_HORIZONTAL);
-        island.setPadding(dp(44), dp(22), dp(44), dp(24));
-        island.setBackground(new GlassDrawable(backdrop, GlassDrawable.SMOKE, dp(36), density));
+        island.setPadding(dp(24), dp(8), dp(24), dp(8));
         island.setAlpha(0f);
 
         LinearLayout top = new LinearLayout(this);
@@ -179,7 +186,7 @@ public class LiveSaverDream extends DreamService {
         style(time, 80, Color.WHITE, R.string.font_clock_bold);
         time.setLetterSpacing(-0.03f);
         time.setIncludeFontPadding(false);
-        time.setShadowLayer(dp(10), 0, dp(2), 0x40000000);
+        DepthShadow.apply(time, 4f, 18f);
         top.addView(time, wrap());
         if (!DateFormat.is24HourFormat(this)) {
             TextClock ampm = new TextClock(this);
@@ -187,6 +194,7 @@ public class LiveSaverDream extends DreamService {
             ampm.setFormat24Hour("");
             style(ampm, 16, 0xCCFFFFFF, R.string.font_label_bold);
             ampm.setAllCaps(true);
+            DepthShadow.apply(ampm, 1.2f, 6f);
             LinearLayout.LayoutParams lp = wrap();
             lp.gravity = Gravity.BOTTOM;
             lp.setMargins(dp(6), 0, 0, dp(10));
@@ -200,6 +208,7 @@ public class LiveSaverDream extends DreamService {
         date.setFormat24Hour(getString(R.string.date_format_home));
         style(date, 26, Color.WHITE, R.string.font_title_italic);
         date.setSingleLine(true);
+        DepthShadow.apply(date, 2f, 10f);
         LinearLayout.LayoutParams dl = wrap();
         dl.topMargin = dp(8);
         island.addView(date, dl);
@@ -209,6 +218,7 @@ public class LiveSaverDream extends DreamService {
         greeting.setLetterSpacing(0.2f);
         greeting.setSingleLine(true);
         greeting.setAllCaps(true);   // after setSingleLine, which would replace the capitals
+        DepthShadow.apply(greeting, 1.2f, 6f);
         LinearLayout.LayoutParams gl = wrap();
         gl.topMargin = dp(10);
         island.addView(greeting, gl);
@@ -253,10 +263,12 @@ public class LiveSaverDream extends DreamService {
         weatherTemp = new TextView(this);
         style(weatherTemp, 30, Color.WHITE, R.string.font_clock);
         weatherTemp.setIncludeFontPadding(false);
+        DepthShadow.apply(weatherTemp, 2f, 8f);
         column.addView(weatherTemp, wrap());
         weatherLine = new TextView(this);
         style(weatherLine, 12, 0xCCFFFFFF, R.string.font_label);
         weatherLine.setSingleLine(true);
+        DepthShadow.apply(weatherLine, 1f, 5f);
         LinearLayout.LayoutParams ll = wrap();
         ll.topMargin = dp(3);
         column.addView(weatherLine, ll);
