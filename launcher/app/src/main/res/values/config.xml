@@ -523,6 +523,19 @@
          when focus goes back to the dock (so a hero_banners picture stays clean even with ambient_glow off). Each app's
          colour comes from its grid icon. Can also be set with "grid_glow" in a theme's config.json. -->
     <bool name="grid_glow">true</bool>
+    <!-- A "Continue watching" row between the dock and the grid: what was left part-watched in any app that reports
+         its playback (Netflix, YouTube and the like), with its picture and how far in, and Stremio's own list once the
+         row's "Connect Stremio" card has linked the account. Recording needs the notification listener:
+         cmd notification allow_listener com.gathin.tvhome/.WatchListener. Needs dock_row, and the internet for
+         Stremio and for pictures given as a link. Can also be set with "continue_watching" in a theme's config.json. -->
+    <bool name="continue_watching">false</bool>
+    <!-- Apps whose playback never goes into the Continue watching row: music players, whose paused song is no
+         show. Can also be set with "continue_skip". -->
+    <string-array name="continue_skip" translatable="false">
+        <item>com.spotify.tv.android</item>
+        <item>com.google.android.youtube.tvmusic</item>
+        <item>com.android.bluetooth</item>
+    </string-array>
     <!-- true: when the focus moves to an app of another colour, the ambient glow takes the new colour in one frame
          instead of dimming and fading back in. Each frame of that fade repaints the whole screen, about 40 per key
          press, which a slow GPU such as the Mali-G52 cannot keep up with. Can also be set with "glow_snap" in a

@@ -182,6 +182,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private java.util.concurrent.ExecutorService heroBannerLoader;
     /** grid_glow: a full-screen wash in the focused grid app's colour, above the shelf's scrim (setUpGridGlow). */
     private View gridGlowView;
+    /** continue_watching: the row under the dock, laid over the room the dock's decoration leaves; null when off. */
+    private ContinueRow continueRow;
+    private DockDecoration dockDecoration;
     private int gridGlowColor;
     private ValueAnimator gridGlowAnimator;
     /** The focus glow's colour while the cinematic shelf tints it, 0 for plain white glass. */
@@ -703,8 +706,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             public void onChildViewDetachedFromWindow(@NonNull View v) {
             }
         });
-        if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding, cfg.dockBand,
-                singleRow, cfg.dockBandAll));
+        if (dockRow) {
+            dockDecoration = new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass,
+                    cfg.dockEvenPadding, cfg.dockBand, singleRow, cfg.dockBandAll);
+            grid.addItemDecoration(dockDecoration);
+        }
         if (cfg.fadeRows) TopFade.attach(grid, 48 * density);
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
@@ -717,6 +723,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Order savedOrder = Order.load(Order.file(this));
         adapter.setSavedOrder(Order.ranks(savedOrder, dockApps), Order.docked(savedOrder, dockApps));
         grid.setAdapter(adapter);
+        if (cfg.continueWatching && dockRow && !singleRow) setUpContinueRow();
 
         // tvOS layout: push the dock row towards the bottom of the screen, leaving room for
         // rows_below_dock grid rows under it; the rest of the grid stays below until you press Down.
@@ -1136,6 +1143,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openLiveTvAfterBoot()) return;
         updateGreeting();
         updatePanel();
+        if (continueRow != null) continueRow.refresh();
         // Back from an app opened from its tile, focus is still on that tile, so the cinematic "Last opened" line kept
         // the time from before this launch ("2 days ago" right after opening it). Refresh it.
         if (cinematic && heroMeta != null && lastFocused >= 0 && lastFocused < adapter.appCount()) updateHeroMeta(lastFocused);
@@ -1378,6 +1386,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArtKey = null;
         heroBannerCache.clear();
         heroBannerMissing.clear();
+        if (continueRow != null) continueRow.release();
         wallpaperPlayer.releaseForMemoryPressure();
         tileRefresh.invalidate();
     }
@@ -1398,6 +1407,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onDestroy() {
         super.onDestroy();
         if (heroBannerLoader != null) heroBannerLoader.shutdownNow();
+        if (continueRow != null) {
+            WatchHistory.setOnChange(null);
+            continueRow.destroy();
+        }
         RemoteKeys.release(this);
         cancelHoldOk();
         if (gameDay != null) gameDay.shutdown();
@@ -2295,6 +2308,126 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }).start();
     }
 
+    // ---- continue watching ------------------------------------------------------------------------
+
+    private void setUpContinueRow() {
+        continueRow = new ContinueRow(this, new ContinueRow.Host() {
+            @Override
+            public void onContinueFocused(View card, WatchHistory.Item item) {
+                showContinue(item);
+            }
+
+            @Override
+            public void onContinueUp(float screenX) {
+                focusNearestTile(screenX, 0, Math.min(adapter.dockFilled(), COLUMNS));
+                grid.playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
+            }
+
+            @Override
+            public void onContinueDown(float screenX) {
+                int n = adapter.appCount();
+                if (n <= COLUMNS) return;
+                focusNearestTile(screenX, COLUMNS, Math.min(n, COLUMNS + GRID_COLUMNS));
+                grid.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN);
+            }
+
+            @Override
+            public void onContinueShownChanged(boolean shown) {
+                if (dockDecoration == null) return;
+                dockDecoration.setExtraBottom(shown ? continueRow.heightPx() : 0);
+                grid.invalidateItemDecorations();
+            }
+        });
+        ViewGroup wrapper = (ViewGroup) grid.getParent();
+        wrapper.addView(continueRow.view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        // The row rides with the grid: every frame it sits right under the dock row, wherever the grid has scrolled.
+        grid.getViewTreeObserver().addOnPreDrawListener(() -> {
+            placeContinueRow();
+            return true;
+        });
+        WatchHistory.setOnChange(() -> {
+            if (resumed && continueRow != null) continueRow.refresh();
+        });
+        continueRow.refresh();
+    }
+
+    /** Puts the row in the room under the dock row, lined up with the dock's first tile. */
+    private void placeContinueRow() {
+        if (continueRow == null || !continueRow.shown()) return;
+        float top;
+        RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
+        if (dock != null) {
+            View item = dock.itemView;
+            top = item.getBottom() + item.getTranslationY() + 12 * density;
+            View card = item.findViewById(R.id.card);
+            if (card != null) continueRow.setStartInset(item.getLeft() + card.getLeft());
+        } else {
+            // The dock scrolled away: the grid's first row is just under the room.
+            RecyclerView.ViewHolder first = adapter.appCount() > COLUMNS ? grid.findViewHolderForAdapterPosition(COLUMNS) : null;
+            top = first == null ? -100000f : first.itemView.getTop() - continueRow.heightPx();
+        }
+        top += grid.getTop();
+        if (continueRow.view.getTranslationY() != top) continueRow.view.setTranslationY(top);
+    }
+
+    /** The middle of a tile's card on the screen, for moving to the nearest card of another row. */
+    private float tileScreenX(int position) {
+        RecyclerView.ViewHolder vh = grid.findViewHolderForAdapterPosition(position);
+        View card = vh == null ? null : vh.itemView.findViewById(R.id.card);
+        if (card == null) return 0f;
+        int[] at = new int[2];
+        card.getLocationOnScreen(at);
+        return at[0] + card.getWidth() / 2f;
+    }
+
+    /** Focuses the tile in [from, to) whose card is nearest this screen x. */
+    private void focusNearestTile(float screenX, int from, int to) {
+        int best = -1;
+        float bestD = Float.MAX_VALUE;
+        for (int p = from; p < to; p++) {
+            RecyclerView.ViewHolder vh = grid.findViewHolderForAdapterPosition(p);
+            View card = vh == null ? null : vh.itemView.findViewById(R.id.card);
+            if (card == null || card.getVisibility() != View.VISIBLE) continue;
+            float d = Math.abs(tileScreenX(p) - screenX);
+            if (d < bestD) {
+                bestD = d;
+                best = p;
+            }
+        }
+        focusTile(best >= 0 ? best : from);
+    }
+
+    /**
+     * A Continue watching card is focused: the dock's highlight, name and glow step back, the row scrolls fully into
+     * view, and the dock app's picture behind the shelf fades out.
+     */
+    private void showContinue(WatchHistory.Item item) {
+        hideGlass();
+        hideGridGlow();
+        stopAmbientAnimation();
+        hero.animate().cancel();
+        ambient.animate().cancel();
+        heroShown = false;
+        boolean motion = animations && !reducedMotion;
+        if (motion) {
+            hero.animate().alpha(0f).setDuration(160).start();
+            if (ambientGlow) ambient.animate().alpha(0f).setDuration(300).start();
+        } else {
+            hero.setAlpha(0f);
+            ambient.setAlpha(0f);
+        }
+        float bottom = continueRow.view.getTranslationY() + continueRow.view.getHeight();
+        int dy = (int) (bottom - (grid.getTop() + grid.getHeight() - 16 * density));
+        if (dy > 0) {
+            if (motion) grid.smoothScrollBy(0, dy);
+            else grid.scrollBy(0, dy);
+        }
+        heroArtKey = null;
+        heroArt.animate().cancel();
+        fadeHeroArt(300, 0f);
+    }
+
     // ---- grid glow -------------------------------------------------------------------------------
 
     /**
@@ -2596,6 +2729,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // The grid under the dock counts its columns from its own first tile (grid_columns may differ).
             return GridNavigation.atHorizontalEdge(position - COLUMNS, count - COLUMNS, GRID_COLUMNS,
                     rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
+        }
+        // continue_watching: Down from the dock and Up from the grid's first row stop at the row between them.
+        if (continueRow != null && continueRow.shown() && !reordering) {
+            boolean intoRow = keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? position < COLUMNS
+                    : position >= COLUMNS && GridRows.up(position, COLUMNS, GRID_COLUMNS) < COLUMNS;
+            if (intoRow && continueRow.focusNearest(tileScreenX(position))) {
+                grid.playSoundEffect(keyCode == KeyEvent.KEYCODE_DPAD_UP
+                        ? SoundEffectConstants.NAVIGATION_UP : SoundEffectConstants.NAVIGATION_DOWN);
+                return true;
+            }
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
             target = GridRows.up(position, COLUMNS, GRID_COLUMNS);

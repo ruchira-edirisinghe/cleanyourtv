@@ -287,6 +287,10 @@ final class Config {
     boolean gridGlow;
     /** Tiles that switch to a TV input, key to input ids (config.xml, input_tiles). Set by load(). */
     Map<String, String> inputTiles = Collections.emptyMap();
+    /** A row of what was left part-watched, between the dock and the grid (config.xml, continue_watching). */
+    boolean continueWatching;
+    /** Apps whose playback never goes into that row, such as music players (config.xml, continue_skip). */
+    List<String> continueSkip = Collections.emptyList();
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, List<String> libraryExcludedApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -552,6 +556,8 @@ final class Config {
         boolean heroBanners = res.getBoolean(R.bool.hero_banners);
         boolean gridGlow = res.getBoolean(R.bool.grid_glow);
         List<String> inputTiles = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.input_tiles)));
+        boolean continueWatching = res.getBoolean(R.bool.continue_watching);
+        List<String> continueSkip = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.continue_skip)));
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -670,6 +676,8 @@ final class Config {
             heroBanners = bool(json, "hero_banners", heroBanners);
             gridGlow = bool(json, "grid_glow", gridGlow);
             inputTiles = stringList(json, "input_tiles", inputTiles);
+            continueWatching = bool(json, "continue_watching", continueWatching);
+            continueSkip = stringList(json, "continue_skip", continueSkip);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
         }
@@ -741,6 +749,8 @@ final class Config {
         built.heroBanners = heroBanners;
         built.gridGlow = gridGlow;
         built.inputTiles = Collections.unmodifiableMap(packageMap(inputTiles));
+        built.continueWatching = continueWatching;
+        built.continueSkip = Collections.unmodifiableList(continueSkip);
         return built;
     }
 

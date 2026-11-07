@@ -8,6 +8,9 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- continue_watching only: Stremio's account list and the cover pictures of the Continue watching row. This fork
+         lets the launcher use the network for that; nothing else is sent anywhere. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Needed since Android 10 to read the Wi-Fi network name for the network pill. Never requested at
          runtime: build-and-install grants it with pm grant, so lint's Android 12 "ask for COARSE with
@@ -226,6 +229,17 @@
             android:directBootAware="true"
             android:exported="true"
             android:label="@string/home_key_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+        <!-- continue_watching: reads what other apps report playing (their media sessions), never a notification.
+             cmd notification allow_listener com.gathin.tvhome/.WatchListener -->
+        <service
+            android:name=".WatchListener"
+            android:exported="true"
+            android:label="@string/continue_watching"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

@@ -158,4 +158,20 @@
     <string name="clock_format_system">System</string>
     <string name="clock_format_12">12-hour</string>
     <string name="clock_format_24">24-hour</string>
+    <!-- Continue watching row (continue_watching). -->
+    <string name="continue_watching">Continue watching</string>
+    <string name="continue_min_left">%1$d min left</string>
+    <string name="continue_hours_left">%1$d h %2$d min left</string>
+    <string name="continue_remove">Remove from Continue watching</string>
+    <string name="continue_open_app">Open %1$s</string>
+    <string name="continue_connect_title">Connect Stremio</string>
+    <string name="continue_connect_caption">Your Stremio list here</string>
+    <string name="continue_hide_connect">Hide this card</string>
+    <string name="continue_unlink">Disconnect Stremio</string>
+    <string name="stremio_link_title">Connect your Stremio account</string>
+    <string name="stremio_link_steps">On your phone or computer, open link.stremio.com and enter this code, or scan it. Sign in there if Stremio asks, then approve.</string>
+    <string name="stremio_link_waiting">Waiting for you to approve…</string>
+    <string name="stremio_link_failed">Couldn\'t reach Stremio. Check the internet and try again.</string>
+    <string name="stremio_link_expired">The code ran out. Open this again for a new one.</string>
+    <string name="stremio_link_done">Stremio connected</string>
 </resources>

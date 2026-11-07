@@ -34,6 +34,8 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     private final boolean singleRow;
     /** dock_band_all: in a single row, the band runs behind every app instead of the dock apps only. */
     private final boolean bandAll;
+    /** Room left under the dock row for the Continue watching row laid over it (continue_watching), in px. */
+    private int extraBottom;
 
     /**
      * @param translucent the cinematic shelf's band: the artwork and the glow show through it.
@@ -75,13 +77,18 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         return Math.max(0f, Math.min(gap, roomPx));
     }
 
+    /** The room under the dock row for a row laid over it; the grid needs invalidateItemDecorations() after. */
+    void setExtraBottom(int px) {
+        extraBottom = px;
+    }
+
     @Override
     public void getItemOffsets(@NonNull Rect outRect, @NonNull View view, @NonNull RecyclerView parent,
                                @NonNull RecyclerView.State state) {
         int pos = parent.getChildAdapterPosition(view);
         if (pos >= 0 && (singleRow || pos < dockSize)) {
             outRect.top = (int) (6 * density);
-            outRect.bottom = (int) (12 * density);
+            outRect.bottom = (int) (12 * density) + (singleRow ? 0 : extraBottom);
         }
     }
 
