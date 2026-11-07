@@ -17,6 +17,15 @@ public class ThemeFilesTest {
         assertEquals("theme_revision", ThemeFiles.path(Collections.singletonList("theme_revision")));
     }
 
+    @Test public void fontsNamedAfterTheirStringAreAllowed() {
+        assertEquals("fonts/font_label.ttf", ThemeFiles.path(Arrays.asList("fonts", "font_label.ttf")));
+        assertEquals("fonts/font_title_italic.otf", ThemeFiles.path(Arrays.asList("fonts", "font_title_italic.otf")));
+        assertNull(ThemeFiles.path(Arrays.asList("fonts", "ProductSans-Black.ttf")));
+        assertNull(ThemeFiles.path(Arrays.asList("fonts", "font_label.ttf.jpg")));
+        assertNull(ThemeFiles.path(Arrays.asList("fonts", "../font_label.ttf")));
+        assertNull(ThemeFiles.path(Collections.singletonList("font_label.ttf")));
+    }
+
     @Test public void collectionImagesAreAllowed() {
         assertEquals("wallpapers/dusk.jpg", ThemeFiles.path(Arrays.asList("wallpapers", "dusk.jpg")));
         assertEquals("wallpapers/Night_2.WEBP", ThemeFiles.path(Arrays.asList("wallpapers", "Night_2.WEBP")));

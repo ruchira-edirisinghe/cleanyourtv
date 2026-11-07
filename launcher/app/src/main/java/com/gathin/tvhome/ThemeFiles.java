@@ -12,6 +12,12 @@ final class ThemeFiles {
     static final String ICONS = "icons";
     /** The live screensaver's looping videos (LiveSaverDream), any names (saver/neon-city.mp4). */
     static final String SAVER = "saver";
+    /**
+     * Fonts of your own for the display faces, named after their font_* string (fonts/font_label.ttf): UiFont uses
+     * one in place of the bundled face, so a font that may not be shared never has to be in the launcher.
+     */
+    static final String FONTS = "fonts";
+    private static final Pattern FONT = Pattern.compile("font_[a-z_]+\\.(ttf|otf)");
     private static final Pattern VIDEO = Pattern.compile("[A-Za-z0-9_.-]+\\.(mp4|webm|mkv)", Pattern.CASE_INSENSITIVE);
     /** The names tools/theme.sh accepts for a collection image, and the types WallpaperRotation reads. */
     private static final Pattern IMAGE = Pattern.compile("[A-Za-z0-9_.-]+\\.(jpg|jpeg|png|webp)",
@@ -40,6 +46,9 @@ final class ThemeFiles {
         if (segments.size() == 2 && SAVER.equals(segments.get(0)) && saverVideo(segments.get(1))) {
             return SAVER + "/" + segments.get(1);
         }
+        if (segments.size() == 2 && FONTS.equals(segments.get(0)) && font(segments.get(1))) {
+            return FONTS + "/" + segments.get(1);
+        }
         return null;
     }
 
@@ -50,6 +59,10 @@ final class ThemeFiles {
 
     static boolean saverVideo(String name) {
         return name != null && !name.startsWith(".") && VIDEO.matcher(name).matches();
+    }
+
+    static boolean font(String name) {
+        return name != null && FONT.matcher(name).matches();
     }
 
     static boolean collectionImage(String name) {
