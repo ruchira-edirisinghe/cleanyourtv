@@ -2776,7 +2776,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
             target = GridRows.up(position, COLUMNS, GRID_COLUMNS);
-            if (target < 0) return false;          // dock row: let focus move to the top bar
+            if (target < 0) return continueRow != null && upPastContinueRow();   // dock row: on to the top bar
         } else {
             target = GridRows.down(position, count, COLUMNS, GRID_COLUMNS);
             if (target < 0) {
@@ -2788,6 +2788,23 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // The default focus search clicks for Left/Right; Up/Down are handled here, so click for them too.
         grid.playSoundEffect(keyCode == KeyEvent.KEYCODE_DPAD_UP
                 ? SoundEffectConstants.NAVIGATION_UP : SoundEffectConstants.NAVIGATION_DOWN);
+        return true;
+    }
+
+    /**
+     * Up from the dock with the Continue watching row there: the row is moved under the dock by translation, which focus
+     * search does not see, so it would count as above the dock and take the focus. Search with the row left out.
+     */
+    private boolean upPastContinueRow() {
+        View focused = getCurrentFocus();
+        if (focused == null) return false;
+        LinearLayout row = continueRow.view;
+        int was = row.getDescendantFocusability();
+        row.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
+        View next = focused.focusSearch(View.FOCUS_UP);
+        row.setDescendantFocusability(was);
+        if (next == null || !next.requestFocus()) return false;
+        grid.playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
         return true;
     }
 
