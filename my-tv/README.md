@@ -72,3 +72,8 @@ rim. The screensaver's cards use the same glass, over the video.
 
 Clocks are set in Sora, titles in Fraunces and labels in Space Grotesk (all SIL Open Font License), and the Continue
 watching cards show each title's poster.
+
+On this TV the titles and labels are Product Sans Black instead (the date in its italic). Product Sans may not be
+shared, so it is not in the repo: put the files in `my-tv/fonts/` (git-ignored), named after the string they replace
+(`font_title.ttf`, `font_title_italic.ttf`, `font_label.ttf`, `font_label_bold.ttf`), and `push-art.sh` sends them
+to the launcher's theme folder, which uses a font there in place of the bundled one.

@@ -21,3 +21,6 @@ bench-results/
 *.aab
 launcher/hs_err_pid*.log
 launcher/replay_pid*.log
+
+# my-tv/fonts: display fonts for this TV that may not be shared (Product Sans); push-art.sh sends them to the TV.
+my-tv/fonts/
