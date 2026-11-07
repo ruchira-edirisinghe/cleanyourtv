@@ -2541,7 +2541,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Puts the row in the room under the dock row, lined up with the dock's first tile. */
     private void placeContinueRow() {
-        if (continueRow == null || !continueRow.shown()) return;
+        if (continueRow == null) return;
+        if (!continueRow.shown()) {
+            liftHeader(0f);
+            return;
+        }
         float top;
         RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
         if (dock != null) {
@@ -2556,6 +2560,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         top += grid.getTop();
         if (continueRow.view.getTranslationY() != top) continueRow.view.setTranslationY(top);
+        // The row draws outside the grid's clip, so once the apps scroll it up into the header's room it would lie
+        // over the clock and the top bar: they slide up and fade out ahead of it instead, and come back with it.
+        View wrapper = (View) continueRow.view.getParent();
+        liftHeader(headerRow().getBottom() + 10 * density - (wrapper.getTop() + top));
+    }
+
+    /** The clock and the top bar: the row above the grid that holds them. */
+    private View headerRow() {
+        return (View) clockBlock.getParent();
+    }
+
+    /** Moves the header up by shift px (0 puts it back), fading it out over its own height. */
+    private void liftHeader(float shift) {
+        View header = headerRow();
+        float room = Math.max(1, header.getBottom());
+        float y = -Math.max(0f, Math.min(shift, room));
+        if (header.getTranslationY() == y) return;
+        header.setTranslationY(y);
+        header.setAlpha(1f + y / room);
     }
 
     /** The middle of a tile's card on the screen, for moving to the nearest card of another row. */
