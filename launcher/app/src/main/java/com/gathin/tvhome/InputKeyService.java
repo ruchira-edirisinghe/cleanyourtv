@@ -3,6 +3,7 @@ package com.gathin.tvhome;
 import android.accessibilityservice.AccessibilityService;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.util.Log;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityEvent;
 import java.util.Collections;
@@ -19,6 +20,7 @@ import java.util.Map;
 public class InputKeyService extends AccessibilityService {
 
     private static final String ACTION_VIEW_INPUTS = "com.android.tv.action.VIEW_INPUTS";
+    private static final String KEY_LOG = "TvHomeKeys";
 
     private int[] inputKeycodes = new int[0];
     private Map<Integer, String> appKeys = Collections.emptyMap();
@@ -62,6 +64,12 @@ public class InputKeyService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
+        // Which keycode and scancode a remote button sends, for app_keys and input_key_keycodes:
+        // adb shell setprop log.tag.TvHomeKeys DEBUG, then adb logcat -s TvHomeKeys while pressing it.
+        if (Log.isLoggable(KEY_LOG, Log.DEBUG)) {
+            Log.d(KEY_LOG, "keycode " + event.getKeyCode() + " scancode " + event.getScanCode() + " action "
+                    + event.getAction() + " device " + event.getDeviceId());
+        }
         if (consumeVolumeKeys && VolumeKeys.handle(this, event)) return true;
         // A scancode entry is more specific than any keycode, so it goes first.
         if (RemoteKeys.handle(this, event, appScancodes.get(event.getScanCode()),
