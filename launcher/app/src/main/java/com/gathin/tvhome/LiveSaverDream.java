@@ -81,6 +81,11 @@ public class LiveSaverDream extends DreamService {
     private LinearLayout island;
     private TextView greeting;
 
+    // the weather
+    private LinearLayout weatherBox;
+    private WeatherIcon weatherIcon;
+    private TextView weatherTemp, weatherLine;
+
     // the card
     private FrameLayout card;
     private ImageView cardPoster;
@@ -154,8 +159,8 @@ public class LiveSaverDream extends DreamService {
     // ---- the clock ----------------------------------------------------------------------------------------------
 
     /**
-     * At the top centre: the time in Sora, the date under it in Fraunces italic, then the greeting in Space Grotesk
-     * capitals, all centred.
+     * At the top centre: the time (and the weather beside it) in Sora, the date under it in Fraunces italic, then the
+     * greeting in Space Grotesk capitals, all centred.
      */
     private void buildIsland() {
         island = new LinearLayout(this);
@@ -187,6 +192,7 @@ public class LiveSaverDream extends DreamService {
             lp.setMargins(dp(6), 0, 0, dp(10));
             top.addView(ampm, lp);
         }
+        buildWeather(top);
         island.addView(top, wrap());
 
         TextClock date = new TextClock(this);
@@ -229,6 +235,70 @@ public class LiveSaverDream extends DreamService {
             main.postDelayed(this, MINUTE_MS);
         }
     };
+
+    // ---- the weather (saver_weather) ----------------------------------------------------------------------------
+
+    /** A picture and the temperature beside the time, with what it is doing (and where) under the temperature. */
+    private void buildWeather(LinearLayout top) {
+        weatherBox = new LinearLayout(this);
+        weatherBox.setOrientation(LinearLayout.HORIZONTAL);
+        weatherBox.setGravity(Gravity.CENTER_VERTICAL);
+        weatherBox.setVisibility(View.GONE);
+        ImageView icon = new ImageView(this);
+        weatherIcon = new WeatherIcon();
+        icon.setImageDrawable(weatherIcon);
+        weatherBox.addView(icon, new LinearLayout.LayoutParams(dp(54), dp(54)));
+        LinearLayout column = new LinearLayout(this);
+        column.setOrientation(LinearLayout.VERTICAL);
+        weatherTemp = new TextView(this);
+        style(weatherTemp, 30, Color.WHITE, R.string.font_clock);
+        weatherTemp.setIncludeFontPadding(false);
+        column.addView(weatherTemp, wrap());
+        weatherLine = new TextView(this);
+        style(weatherLine, 12, 0xCCFFFFFF, R.string.font_label);
+        weatherLine.setSingleLine(true);
+        LinearLayout.LayoutParams ll = wrap();
+        ll.topMargin = dp(3);
+        column.addView(weatherLine, ll);
+        LinearLayout.LayoutParams cl = wrap();
+        cl.leftMargin = dp(10);
+        weatherBox.addView(column, cl);
+        LinearLayout.LayoutParams bl = wrap();
+        bl.leftMargin = dp(30);
+        top.addView(weatherBox, bl);
+    }
+
+    private void showWeather(Weather.Now now) {
+        if (now == null) return;
+        weatherIcon.set(now.code, now.day);
+        weatherTemp.setText(getString(R.string.weather_degrees, Math.round(now.temperature)));
+        String what = getString(Weather.describe(now.code));
+        weatherLine.setText(now.place.isEmpty() ? what : what + " · " + now.place);
+        weatherBox.setVisibility(View.VISIBLE);
+    }
+
+    private final Runnable weatherTick = new Runnable() {
+        @Override
+        public void run() {
+            main.removeCallbacks(this);
+            if (!running || !config.saverWeather) return;
+            work.execute(() -> {
+                Weather.Now now = Weather.fetch(LiveSaverDream.this, config.weatherLocation, config.weatherFahrenheit);
+                main.post(() -> {
+                    if (running) showWeather(now);
+                });
+            });
+            main.postDelayed(this, Weather.FRESH_MS);
+        }
+    };
+
+    private void startWeather() {
+        if (!config.saverWeather) return;
+        Weather.Now last = Weather.last(this, config.weatherLocation, config.weatherFahrenheit);
+        showWeather(last);
+        if (last != null && last.fresh()) main.postDelayed(weatherTick, Weather.FRESH_MS - (System.currentTimeMillis() - last.at));
+        else main.post(weatherTick);
+    }
 
     // ---- the card -----------------------------------------------------------------------------------------------
 
@@ -569,6 +639,7 @@ public class LiveSaverDream extends DreamService {
         nextClip();
         island.animate().alpha(1f).setStartDelay(600).setDuration(1200).start();
         main.postDelayed(minute, MINUTE_MS);
+        startWeather();
         main.postDelayed(copyBackdrop, 400);
         main.postDelayed(showCard, CARD_FIRST_MS);
     }
