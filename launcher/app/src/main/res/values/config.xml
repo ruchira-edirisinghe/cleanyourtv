@@ -84,12 +84,23 @@
     <string-array name="launch_actions">
     </string-array>
 
+    <!-- Tiles that switch to a TV input instead of opening an app, such as a games console: "key=input id". The key
+         stands in for a package everywhere else: in dock_apps, app_labels, app_banners, hidden_apps and as
+         heroes/<key>.jpg. Several ids separated by "|" are tried in order, the first the TV has wins: the console's
+         CEC input first (selecting it also wakes the console over HDMI-CEC), then its HDMI port, which stays
+         listed while the console is unplugged. Ids from dumpsys tv_input. Can also be set with "input_tiles". -->
+    <string-array name="input_tiles" translatable="false">
+        <item>input.playstation=com.tcl.tvinput/.TvPassThroughService/HDMI100004|com.tcl.tvinput/.TvPassThroughService/HW15</item>
+    </string-array>
+
     <!-- A tile's name instead of the app's own: "package=Name". It also shows above the dock. -->
     <string-array name="app_labels">
+        <item>input.playstation=PlayStation</item>
     </string-array>
     <!-- A tile's artwork instead of the app's banner: "package=drawable", a banner_* drawable bundled with the
          launcher (res/drawable). banner_tv is a magenta field with the Live TV glyph. -->
     <string-array name="app_banners">
+        <item>input.playstation=banner_playstation</item>
     </string-array>
 
     <!-- TVs with no TvInputManager have no HDMI list to read, but their own source-selection panel

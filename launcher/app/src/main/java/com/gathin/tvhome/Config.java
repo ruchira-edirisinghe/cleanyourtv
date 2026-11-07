@@ -283,6 +283,8 @@ final class Config {
     boolean iconGrid;
     /** With cinematic_home, heroes/<package>.jpg behind the shelf (config.xml, hero_banners). Set by load(). */
     boolean heroBanners;
+    /** Tiles that switch to a TV input, key to input ids (config.xml, input_tiles). Set by load(). */
+    Map<String, String> inputTiles = Collections.emptyMap();
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, List<String> libraryExcludedApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -546,6 +548,7 @@ final class Config {
         int gridColumns = res.getInteger(R.integer.grid_columns);
         boolean iconGrid = res.getBoolean(R.bool.icon_grid);
         boolean heroBanners = res.getBoolean(R.bool.hero_banners);
+        List<String> inputTiles = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.input_tiles)));
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -662,6 +665,7 @@ final class Config {
             gridColumns = integer(json, "grid_columns", gridColumns, 0, 8);
             iconGrid = bool(json, "icon_grid", iconGrid);
             heroBanners = bool(json, "hero_banners", heroBanners);
+            inputTiles = stringList(json, "input_tiles", inputTiles);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
         }
@@ -731,6 +735,7 @@ final class Config {
         built.gridColumns = Math.max(0, Math.min(8, gridColumns));
         built.iconGrid = iconGrid;
         built.heroBanners = heroBanners;
+        built.inputTiles = Collections.unmodifiableMap(packageMap(inputTiles));
         return built;
     }
 

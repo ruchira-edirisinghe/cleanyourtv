@@ -67,7 +67,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     }
 
     static final class Entry {
-        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY = 3;
+        static final int APP = 0, HOME_SETTINGS = 1, CARD = 2, EMPTY = 3, INPUT = 4;
 
         final int kind;
         final String label;
@@ -81,6 +81,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         int ambient;
         /** uniform_tiles card fill, top and bottom colour; null until sampled from the icon. */
         int[] backdrop;
+        /** An INPUT tile's input ids (input_tiles, "|"-separated): OK switches to the first the TV has. */
+        String inputId;
 
         Entry(String label, ComponentName component, Drawable banner, Drawable icon) {
             this(APP, label, component, banner, icon, null, 0);
@@ -221,6 +223,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean uniformTiles;
     /** Packages drawn from their icon and name even when they have a banner (config.xml icon_tiles). */
     private final Set<String> iconTiles;
+    /** Tiles that switch to a TV input (config.xml input_tiles): key to its input ids. */
+    private final Map<String, String> inputTiles;
     /** Tiles per row in the grid under the dock (config.xml grid_columns); dockSize when it has no own count. */
     private final int gridColumns;
     /** The grid under the dock as rounded square icons with their names (config.xml icon_grid). */
@@ -260,6 +264,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         boolean grid = cfg.dockRow && !cfg.singleRow;
         this.gridColumns = grid && cfg.gridColumns > 0 ? cfg.gridColumns : dockSize;
         this.iconGrid = grid && cfg.iconGrid;
+        this.inputTiles = cfg.inputTiles;
         // Tiles keep their identity across reload(), so a focused tile stays on its app instead of
         // its view being rebound to whatever app now sits in that slot.
         setHasStableIds(true);
@@ -322,6 +327,17 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             } else {
                 fresh.add(new Entry(label, component, banner, icon));
             }
+        }
+        // input_tiles: a tile per configured TV input, named and drawn by app_labels and app_banners like an app.
+        for (Map.Entry<String, String> tile : inputTiles.entrySet()) {
+            String key = tile.getKey();
+            if (hidden.contains(key)) continue;
+            Drawable banner = bundledBanner(appBanners.get(key));
+            Entry e = new Entry(Entry.INPUT, Cards.cleanLabel(appLabels.containsKey(key) ? appLabels.get(key) : key, key),
+                    new ComponentName(key, "input"), banner, banner == null ? ctx.getDrawable(R.drawable.ic_input) : null,
+                    null, 0);
+            e.inputId = tile.getValue();
+            fresh.add(e);
         }
         Collections.sort(fresh, (a, b) -> {
             // The owner's own order first; tiles it does not know (new installs) follow by the rule below.
@@ -634,6 +650,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     /** Opens the tile's activity by explicit component, with no extras: a card can name nothing else. */
     @SuppressWarnings("deprecation")
     private void launch(Entry e) {
+        if (e.kind == Entry.INPUT) {
+            listener.onOpenInput(InputTiles.pick(ctx, e.inputId));   // the CEC input appears and goes with the console
+            if (cinematic) LastOpened.record(ctx, e.pkg);
+            return;
+        }
         if (e.kind == Entry.HOME_SETTINGS) {
             ctx.startActivity(new Intent(ctx, HomeSettingsActivity.class)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -773,6 +794,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     String labelAt(int position) {
         return position >= 0 && position < items.size() ? items.get(position).label : "";
+    }
+
+    /** An input_tiles tile, which has no app behind it (no App info). */
+    boolean isInputAt(int position) {
+        return position >= 0 && position < items.size() && items.get(position).kind == Entry.INPUT;
     }
 
     String packageAt(int position) {
