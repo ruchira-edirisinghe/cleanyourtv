@@ -38,3 +38,37 @@ The row under the dock (`continue_watching`) fills itself; two things to do once
    link.stremio.com on a phone and enter the code it shows. Only Stremio's key for this TV is kept on the TV.
 
 Hold OK on a card to remove it, or to disconnect Stremio.
+
+## Live screensaver
+
+`LiveSaverDream` plays looping animated 4K scenes (synthwave suns, neon cities, pixel-art rooms, firefly forests,
+lantern skies) and dips through black to the next every 75 seconds. Each is shown whole, edge to edge on a 16:9
+screen, never cropped. A glass panel sits at the top centre, like a tablet's lock screen: the time with the weather
+beside it, the date, then the greeting with your name. Every half minute or so a glass card with the poster comes up in
+a bottom corner for something left part-watched, or a new Stremio episode. Press OK while a card is up to jump back
+into it; any other key ends the screensaver.
+
+The weather (`saver_weather`) comes from [Open-Meteo](https://open-meteo.com/): set `weather_location` to a place
+name or `latitude,longitude`, or leave it empty to use the place the TV's internet address points to.
+
+The scenes are not in this repo. They are free 3840x2160 videos from
+[Pixabay](https://pixabay.com/service/license-summary/), which may be used but not passed on as files.
+[`saver/get-scenes.sh`](saver/get-scenes.sh) downloads them from there, keeps them at 4K without sound, smooths the
+loops that would jump and writes them to the TV:
+
+```bash
+TV_HOST=<tv ip>:<port> bash my-tv/saver/get-scenes.sh
+adb shell settings put secure screensaver_components com.gathin.tvhome/.LiveSaverDream
+```
+
+Any other `.mp4`, `.webm` or `.mkv` put in the theme folder's `saver/` joins the rotation.
+
+## Liquid glass
+
+`liquid_glass` turns the header into one glass panel (the clock, then the greeting over the date), puts the top
+buttons in one glass bar with a milky lens on the focused one, and makes the dock band glass too. On Android 13 and
+later the glass shows a softened copy of the picture behind it, bent at the edges like a lens, with light along its
+rim. The screensaver's clock and cards use the same glass, over the video.
+
+Clocks are set in Sora, titles in Fraunces and labels in Space Grotesk (all SIL Open Font License), and the Continue
+watching cards show each title's poster.
