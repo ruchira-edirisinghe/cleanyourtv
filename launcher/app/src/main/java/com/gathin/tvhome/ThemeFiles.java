@@ -8,6 +8,8 @@ final class ThemeFiles {
     static final String WALLPAPERS = "wallpapers";
     /** hero_banners: one picture per app, named after its package (heroes/com.example.app.jpg). */
     static final String HEROES = "heroes";
+    /** icon_grid: an app's own square artwork for its grid tile, named after its package (icons/com.example.app.png). */
+    static final String ICONS = "icons";
     /** The names tools/theme.sh accepts for a collection image, and the types WallpaperRotation reads. */
     private static final Pattern IMAGE = Pattern.compile("[A-Za-z0-9_.-]+\\.(jpg|jpeg|png|webp)",
             Pattern.CASE_INSENSITIVE);
@@ -28,6 +30,9 @@ final class ThemeFiles {
         }
         if (segments.size() == 2 && HEROES.equals(segments.get(0)) && collectionImage(segments.get(1))) {
             return HEROES + "/" + segments.get(1);
+        }
+        if (segments.size() == 2 && ICONS.equals(segments.get(0)) && collectionImage(segments.get(1))) {
+            return ICONS + "/" + segments.get(1);
         }
         return null;
     }

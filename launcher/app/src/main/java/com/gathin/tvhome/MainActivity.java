@@ -180,6 +180,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final Set<String> heroBannerLoading = new HashSet<>();
     private boolean heroBanners;
     private java.util.concurrent.ExecutorService heroBannerLoader;
+    /** grid_glow: a full-screen wash in the focused grid app's colour, above the shelf's scrim (setUpGridGlow). */
+    private View gridGlowView;
+    private int gridGlowColor;
+    private ValueAnimator gridGlowAnimator;
     /** The focus glow's colour while the cinematic shelf tints it, 0 for plain white glass. */
     private int glassAccent;
     private int ambientColor = -1;
@@ -544,6 +548,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArtAlpha = cfg.cinematicArt / 100f;
         heroBanners = cinematic && cfg.heroBanners;
         if (cinematic) setUpCinematicShelf(cfg.cinematicScrim);
+        if (cfg.gridGlow && cfg.dockRow && !cfg.singleRow) setUpGridGlow();
         // dock_title false: the name above the dock (and the cinematic lines under it) never shows; the glow
         // still follows the dock.
         if (!cfg.dockTitle) hero.setVisibility(View.GONE);
@@ -1922,6 +1927,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- top shelf -------------------------------------------------------------------------------
 
     private void showHero(int position, float dockTopInRoot) {
+        hideGridGlow();
         String label = adapter.labelAt(position);
         int color = adapter.ambientColorAt(position);
         float y = dockTopInRoot - 14 * density - 26 * density - hero.getHeight();
@@ -2259,6 +2265,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void showGlowOnly(int position) {
         int color = adapter.ambientColorAt(position);
+        showGridGlow(color);
         stopAmbientAnimation();
         hero.animate().cancel();
         ambient.animate().cancel();
@@ -2288,7 +2295,69 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }).start();
     }
 
+    // ---- grid glow -------------------------------------------------------------------------------
+
+    /**
+     * The wash behind the grid: the focused app's colour strongest along the top and in a soft bloom behind the
+     * rows, fading towards the bottom. One small mask stretched over the screen and tinted, like the ambient glow;
+     * it sits just above the cinematic scrim so the shelf's shade does not swallow it, and under everything else.
+     */
+    private void setUpGridGlow() {
+        int w = 480, h = 270;
+        Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bmp);
+        Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        paint.setShader(new LinearGradient(0, 0, w * 0.35f, h, new int[]{0x99FFFFFF, 0x47FFFFFF, 0x0DFFFFFF},
+                new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+        canvas.drawRect(0, 0, w, h, paint);
+        paint.setShader(new RadialGradient(w * 0.62f, h * 0.55f, w * 0.55f, new int[]{0x4DFFFFFF, 0x00FFFFFF},
+                null, Shader.TileMode.CLAMP));
+        canvas.drawRect(0, 0, w, h, paint);
+        BitmapDrawable mask = new BitmapDrawable(getResources(), bmp);
+        mask.setGravity(Gravity.FILL);
+        gridGlowView = new View(this);
+        gridGlowView.setBackground(mask);
+        gridGlowView.setAlpha(0f);
+        gridGlowView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        View below = cinematic ? findViewById(R.id.heroScrim) : ambient;
+        ViewGroup parent = (ViewGroup) below.getParent();
+        parent.addView(gridGlowView, parent.indexOfChild(below) + 1,
+                new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    private void tintGridGlow(int color) {
+        gridGlowColor = color;
+        gridGlowView.getBackground().setTint(0xFF000000 | color);
+    }
+
+    /** Fades the wash in, or blends it from the colour on screen to this app's. */
+    private void showGridGlow(int color) {
+        if (gridGlowView == null) return;
+        if (gridGlowAnimator != null) gridGlowAnimator.cancel();
+        gridGlowView.animate().cancel();
+        boolean motion = animations && !reducedMotion;
+        if (!motion || gridGlowView.getAlpha() == 0f || gridGlowColor == 0) {
+            tintGridGlow(color);
+        } else if (color != gridGlowColor) {
+            gridGlowAnimator = ValueAnimator.ofObject(new ArgbEvaluator(), gridGlowColor, color);
+            gridGlowAnimator.setDuration(380);
+            gridGlowAnimator.addUpdateListener(a -> tintGridGlow((int) a.getAnimatedValue()));
+            gridGlowAnimator.start();
+        }
+        if (motion) gridGlowView.animate().alpha(1f).setDuration(320).start();
+        else gridGlowView.setAlpha(1f);
+    }
+
+    private void hideGridGlow() {
+        if (gridGlowView == null || gridGlowView.getAlpha() == 0f) return;
+        if (gridGlowAnimator != null) gridGlowAnimator.cancel();
+        gridGlowView.animate().cancel();
+        if (animations && !reducedMotion) gridGlowView.animate().alpha(0f).setDuration(260).start();
+        else gridGlowView.setAlpha(0f);
+    }
+
     private void hideHero() {
+        hideGridGlow();
         if (!heroShown) return;
         stopAmbientAnimation();
         hero.animate().cancel();

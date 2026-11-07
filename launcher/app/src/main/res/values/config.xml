@@ -519,6 +519,10 @@
          only background_color or the wallpaper behind everything. Can also be set with "ambient_glow": false in a
          theme's config.json. -->
     <bool name="ambient_glow">true</bool>
+    <!-- While a tile in the grid under the dock is focused, a full-screen gradient in that app's colour, which fades
+         when focus goes back to the dock (so a hero_banners picture stays clean even with ambient_glow off). Each app's
+         colour comes from its grid icon. Can also be set with "grid_glow" in a theme's config.json. -->
+    <bool name="grid_glow">true</bool>
     <!-- true: when the focus moves to an app of another colour, the ambient glow takes the new colour in one frame
          instead of dimming and fading back in. Each frame of that fade repaints the whole screen, about 40 per key
          press, which a slow GPU such as the Mali-G52 cannot keep up with. Can also be set with "glow_snap" in a

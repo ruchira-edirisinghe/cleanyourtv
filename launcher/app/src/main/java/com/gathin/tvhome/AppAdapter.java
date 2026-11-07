@@ -81,6 +81,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         int ambient;
         /** uniform_tiles card fill, top and bottom colour; null until sampled from the icon. */
         int[] backdrop;
+        /** icon_grid: the app's own square artwork from the theme (icons/<package>.png), drawn edge to edge. */
+        Drawable custom;
         /** An INPUT tile's input ids (input_tiles, "|"-separated): OK switches to the first the TV has. */
         String inputId;
 
@@ -328,6 +330,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 fresh.add(new Entry(label, component, banner, icon));
             }
         }
+        if (iconGrid) {
+            for (Entry e : fresh) e.custom = GridIcons.load(ctx, e.pkg);
+        }
         // input_tiles: a tile per configured TV input, named and drawn by app_labels and app_banners like an app.
         for (Map.Entry<String, String> tile : inputTiles.entrySet()) {
             String key = tile.getKey();
@@ -337,6 +342,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                     new ComponentName(key, "input"), banner, banner == null ? ctx.getDrawable(R.drawable.ic_input) : null,
                     null, 0);
             e.inputId = tile.getValue();
+            if (iconGrid) e.custom = GridIcons.load(ctx, key);
             fresh.add(e);
         }
         Collections.sort(fresh, (a, b) -> {
@@ -624,6 +630,14 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
      */
     private void bindSquare(Holder h, Entry e) {
         h.label.setVisibility(View.GONE);
+        if (e.custom != null) {
+            h.card.setBackground(null);
+            h.banner.setImageDrawable(e.custom);
+            h.banner.setVisibility(View.VISIBLE);
+            h.icon.setImageDrawable(null);
+            h.icon.setVisibility(View.GONE);
+            return;
+        }
         if (e.icon instanceof AdaptiveIconDrawable) {
             h.card.setBackground(null);
             h.banner.setImageDrawable(new FullBleedIcon((AdaptiveIconDrawable) e.icon));
@@ -820,6 +834,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     int ambientColorAt(int position) {
         if (position < 0 || position >= items.size()) return 0xFF444444;
         Entry e = items.get(position);
+        if (e.ambient == 0 && e.custom != null) e.ambient = dominantColor(e.custom);
         if (e.ambient == 0) {
             e.ambient = uniformTiles && e.banner == null ? dominantColor(e.icon) : vividColor(e.banner != null ? e.banner : e.icon);
         }
