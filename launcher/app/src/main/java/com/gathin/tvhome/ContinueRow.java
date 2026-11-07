@@ -81,6 +81,8 @@ final class ContinueRow {
 
     final LinearLayout view;
     private final TextView header;
+    /** setDisplayFonts: the cards use the display faces. */
+    private boolean display;
     private final HorizontalScrollView scroller;
     private final LinearLayout strip;
     private final List<WatchHistory.Item> items = new ArrayList<>();
@@ -127,6 +129,14 @@ final class ContinueRow {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = dp(4);
         view.addView(scroller, lp);
+    }
+
+    /** liquid_glass: Fraunces for the titles and Space Grotesk for the header and the lines under them. */
+    void setDisplayFonts() {
+        display = true;
+        header.setTypeface(UiFont.get(activity, R.string.font_label_bold));
+        header.setLetterSpacing(0.2f);
+        signature = "";   // the cards are made again with the new faces at the next refresh
     }
 
     /** The row's height as laid out, for the room under the dock. */
@@ -247,6 +257,10 @@ final class ContinueRow {
         card.addView(art, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         TextView title = text(14.5f, 0xF2FFFFFF, true);
+        if (display) {
+            title.setTypeface(UiFont.get(activity, R.string.font_title));
+            title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f);
+        }
         TextView meta = text(12f, 0xA6FFFFFF, false);
 
         if (item == null) {
@@ -381,7 +395,8 @@ final class ContinueRow {
         t.setSingleLine(true);
         t.setEllipsize(android.text.TextUtils.TruncateAt.END);
         t.setIncludeFontPadding(false);
-        t.setTypeface(UiFont.get(activity, medium ? R.string.font_medium : R.string.font_body));
+        t.setTypeface(UiFont.get(activity, medium ? (display ? R.string.font_label_bold : R.string.font_medium)
+                : (display ? R.string.font_label : R.string.font_body)));
         return t;
     }
 

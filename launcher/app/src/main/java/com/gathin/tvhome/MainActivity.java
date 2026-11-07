@@ -2115,6 +2115,35 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             watchGlass();
             return true;
         });
+        applyDisplayFonts();
+    }
+
+    /**
+     * liquid_glass's type: the clock in Sora, the greeting and buttons in Space Grotesk, the date in Fraunces italic and
+     * the shelf's app name in Fraunces, instead of Outfit everywhere.
+     */
+    private void applyDisplayFonts() {
+        TextView clock = findViewById(R.id.clock);
+        clock.setTypeface(UiFont.get(this, R.string.font_clock));
+        clock.setTextSize(TypedValue.COMPLEX_UNIT_SP, 46f);
+        clock.setLetterSpacing(-0.03f);
+        ((TextView) findViewById(R.id.ampm)).setTypeface(UiFont.get(this, R.string.font_label_bold));
+        greeting.setTypeface(UiFont.get(this, R.string.font_label_bold));
+        TextView date = findViewById(R.id.date);
+        date.setTypeface(UiFont.get(this, R.string.font_title_italic));
+        date.setAllCaps(false);
+        date.setLetterSpacing(0.01f);
+        date.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18f);
+        heroName.setTypeface(UiFont.get(this, R.string.font_title));
+        heroName.setLetterSpacing(-0.01f);
+        heroMeta.setTypeface(UiFont.get(this, R.string.font_label));
+        ViewGroup bar = findViewById(R.id.topButtons);
+        for (int i = 0; i < bar.getChildCount(); i++) {
+            if (bar.getChildAt(i) instanceof TextView) {
+                ((TextView) bar.getChildAt(i)).setTypeface(UiFont.get(this, R.string.font_label));
+            }
+        }
+        if (continueRow != null) continueRow.setDisplayFonts();
     }
 
     /** A top button in the glass bar: clear until focused, then a milky lens (blue glass while switched on). */

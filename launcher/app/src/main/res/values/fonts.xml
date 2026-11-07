@@ -7,4 +7,12 @@
     <string name="font_light" translatable="false">@font/outfit_light</string>
     <string name="font_extralight" translatable="false">@font/outfit_extralight</string>
     <string name="font_medium" translatable="false">@font/outfit_medium</string>
+    <!-- Display faces (liquid_glass and the live screensaver): Sora for clocks, Fraunces for titles, Space Grotesk
+         for labels. Static instances from Google Fonts, under the OFL like Outfit (launcher/FONT-LICENSE-OFL.txt). -->
+    <string name="font_clock" translatable="false">@font/sora_semibold</string>
+    <string name="font_clock_bold" translatable="false">@font/sora_bold</string>
+    <string name="font_title" translatable="false">@font/fraunces_semibold</string>
+    <string name="font_title_italic" translatable="false">@font/fraunces_italic</string>
+    <string name="font_label" translatable="false">@font/space_grotesk_medium</string>
+    <string name="font_label_bold" translatable="false">@font/space_grotesk_bold</string>
 </resources>
