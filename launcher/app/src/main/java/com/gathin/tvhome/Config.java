@@ -291,6 +291,8 @@ final class Config {
     boolean continueWatching;
     /** Apps whose playback never goes into that row, such as music players (config.xml, continue_skip). */
     List<String> continueSkip = Collections.emptyList();
+    /** Liquid glass header, buttons and dock band that bend and lighten what is behind them (config.xml, liquid_glass). */
+    boolean liquidGlass;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, List<String> libraryExcludedApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -558,6 +560,7 @@ final class Config {
         List<String> inputTiles = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.input_tiles)));
         boolean continueWatching = res.getBoolean(R.bool.continue_watching);
         List<String> continueSkip = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.continue_skip)));
+        boolean liquidGlass = res.getBoolean(R.bool.liquid_glass);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -678,6 +681,7 @@ final class Config {
             inputTiles = stringList(json, "input_tiles", inputTiles);
             continueWatching = bool(json, "continue_watching", continueWatching);
             continueSkip = stringList(json, "continue_skip", continueSkip);
+            liquidGlass = bool(json, "liquid_glass", liquidGlass);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
         }
@@ -751,6 +755,7 @@ final class Config {
         built.inputTiles = Collections.unmodifiableMap(packageMap(inputTiles));
         built.continueWatching = continueWatching;
         built.continueSkip = Collections.unmodifiableList(continueSkip);
+        built.liquidGlass = liquidGlass;
         return built;
     }
 

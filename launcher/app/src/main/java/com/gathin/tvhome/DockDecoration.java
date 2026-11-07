@@ -5,6 +5,7 @@ import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.drawable.Drawable;
 import android.graphics.Shader;
 import android.view.View;
 
@@ -36,6 +37,11 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     private final boolean bandAll;
     /** Room left under the dock row for the Continue watching row laid over it (continue_watching), in px. */
     private int extraBottom;
+    /** liquid_glass: the band as glass over what is behind the grid; null keeps the plain band. */
+    private GlassDrawable glass;
+    /** Redraws the grid when the glass's backdrop changes (a drawable holds its callback weakly, so it is kept here). */
+    private Drawable.Callback glassRedraw;
+    private final int[] at = new int[2];
 
     /**
      * @param translucent the cinematic shelf's band: the artwork and the glow show through it.
@@ -80,6 +86,26 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     /** The room under the dock row for a row laid over it; the grid needs invalidateItemDecorations() after. */
     void setExtraBottom(int px) {
         extraBottom = px;
+    }
+
+    /** liquid_glass: draw the band as this glass, redrawing the grid when what is behind it changes. */
+    void setGlass(GlassDrawable glass, RecyclerView grid) {
+        this.glass = glass;
+        glassRedraw = new Drawable.Callback() {
+            @Override
+            public void invalidateDrawable(@NonNull Drawable who) {
+                grid.invalidate();
+            }
+
+            @Override
+            public void scheduleDrawable(@NonNull Drawable who, @NonNull Runnable what, long when) {
+            }
+
+            @Override
+            public void unscheduleDrawable(@NonNull Drawable who, @NonNull Runnable what) {
+            }
+        };
+        glass.setCallback(glassRedraw);
     }
 
     @Override
@@ -152,6 +178,11 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
                     Shader.TileMode.CLAMP));
             shaderTop = rect.top;
             shaderBottom = rect.bottom;
+        }
+        if (glass != null) {
+            parent.getLocationInWindow(at);
+            glass.draw(c, rect, radius, at[0], at[1]);
+            return;
         }
         c.drawRoundRect(rect, radius, radius, band);
         c.drawRoundRect(rect, radius, radius, edge);

@@ -27,6 +27,7 @@ import android.graphics.Rect;
 import android.graphics.Shader;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.media.tv.TvContract;
@@ -284,6 +285,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Festive skin from the theme (see Festival); applied while it is active today. */
     private Festival festival = Festival.NONE;
     private boolean festive;
+    /** liquid_glass: the copy of the backdrop the glass shows, and the layers it is made from. */
+    private GlassBackdrop glassBackdrop;
+    private View[] glassLayers;
+    private int glassSignature;
+    private long glassCaptured;
+    private final Runnable glassCapture = this::captureGlass;
     /** The network pill's festive light: the diya, or the jack-o'-lantern for Halloween. */
     private FestiveLamp lamp;
     private BellDrawable bell;
@@ -955,6 +962,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         }
         if (festive) applyFestiveSkin((TextView) btnInputs, (TextView) btnSettings);
+        if (cfg.liquidGlass) setUpLiquidGlass(cfg);
 
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
@@ -2016,6 +2024,144 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!cinematic) return;
         updateHeroMeta(position);
         updateHeroDots(position);
+    }
+
+    // ---- liquid glass --------------------------------------------------------------------------------------------
+
+    /**
+     * liquid_glass: the header becomes one glass panel (clock, then the greeting over the date), the top buttons sit in
+     * one glass bar with a milky lens on the focused one, and the dock band turns to glass. The glass shows a softened
+     * copy of the layers under the header and grid, remade when one of them changes.
+     */
+    private void setUpLiquidGlass(Config cfg) {
+        glassBackdrop = new GlassBackdrop();
+        LinearLayout block = findViewById(R.id.leftBlock);
+        View content = (View) block.getParent().getParent();
+        List<View> layers = new ArrayList<>();
+        for (int i = 0; i < root.getChildCount() && root.getChildAt(i) != content; i++) layers.add(root.getChildAt(i));
+        glassLayers = layers.toArray(new View[0]);
+        boolean rtlBar = getResources().getBoolean(R.bool.rtl_menu_bar);
+        boolean plain = !cfg.dateBelowClock && !cfg.topMenu && !rtlBar;
+
+        RelativeLayout.LayoutParams blp = (RelativeLayout.LayoutParams) block.getLayoutParams();
+        blp.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+        block.setLayoutParams(blp);
+        if (plain) {
+            TextView date = findViewById(R.id.date);
+            LinearLayout column = (LinearLayout) date.getParent();
+            LinearLayout clockRow = (LinearLayout) findViewById(R.id.clock).getParent();
+            block.removeView(greeting);
+            LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            glp.bottomMargin = Math.round(7 * density);
+            column.addView(greeting, 0, glp);
+            // Side by side with the clock the two lines share the panel's width: a little less spacing keeps a
+            // name in the greeting whole.
+            greeting.setLetterSpacing(0.12f);
+            date.setLetterSpacing(0.1f);
+            LinearLayout.LayoutParams clp = (LinearLayout.LayoutParams) column.getLayoutParams();
+            clp.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+            clp.weight = 0f;
+            clp.gravity = Gravity.CENTER_VERTICAL;
+            clp.bottomMargin = 0;
+            column.setLayoutParams(clp);
+            View divider = findViewById(R.id.clockDivider);
+            LinearLayout.LayoutParams dlp = (LinearLayout.LayoutParams) divider.getLayoutParams();
+            dlp.height = Math.round(46 * density);
+            dlp.gravity = Gravity.CENTER_VERTICAL;
+            dlp.bottomMargin = 0;
+            dlp.setMarginStart(Math.round(18 * density));
+            dlp.setMarginEnd(Math.round(18 * density));
+            divider.setLayoutParams(dlp);
+            clockRow.setBaselineAligned(false);
+            clockRow.setGravity(Gravity.CENTER_VERTICAL);
+            ViewGroup.LayoutParams rlp = clockRow.getLayoutParams();
+            rlp.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+            clockRow.setLayoutParams(rlp);
+
+            LinearLayout bar = findViewById(R.id.topButtons);
+            RelativeLayout.LayoutParams tlp = (RelativeLayout.LayoutParams) bar.getLayoutParams();
+            tlp.removeRule(RelativeLayout.ALIGN_BOTTOM);
+            tlp.removeRule(RelativeLayout.ALIGN_TOP);
+            tlp.addRule(RelativeLayout.CENTER_VERTICAL);
+            tlp.bottomMargin = 0;
+            bar.setLayoutParams(tlp);
+            bar.setGravity(Gravity.CENTER_VERTICAL);
+            int pad = Math.round(6 * density);
+            bar.setPadding(Math.round(2 * density), pad, pad, pad);
+            bar.setBackground(new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, -1, density));
+            if (!festive) {
+                for (int i = 0; i < bar.getChildCount(); i++) {
+                    View button = bar.getChildAt(i);
+                    button.setBackground(lensBackground());
+                    ViewGroup.MarginLayoutParams mlp = (ViewGroup.MarginLayoutParams) button.getLayoutParams();
+                    mlp.setMarginStart(Math.round(4 * density));
+                    button.setLayoutParams(mlp);
+                    // A little tighter than the pills, so the header beside the bar has room for a long date.
+                    if (mlp.width == ViewGroup.LayoutParams.WRAP_CONTENT) {
+                        button.setPaddingRelative(Math.round(12 * density), button.getPaddingTop(),
+                                Math.round(15 * density), button.getPaddingBottom());
+                    }
+                }
+            }
+        }
+        block.setPadding(Math.round(24 * density), Math.round(14 * density), Math.round(26 * density),
+                Math.round(16 * density));
+        block.setBackground(new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, 30 * density, density));
+        if (dockDecoration != null) {
+            dockDecoration.setGlass(new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, 0, density), grid);
+        }
+        root.getViewTreeObserver().addOnPreDrawListener(() -> {
+            watchGlass();
+            return true;
+        });
+    }
+
+    /** A top button in the glass bar: clear until focused, then a milky lens (blue glass while switched on). */
+    private Drawable lensBackground() {
+        StateListDrawable lens = new StateListDrawable();
+        lens.addState(new int[]{android.R.attr.state_focused},
+                new GlassDrawable(glassBackdrop, GlassDrawable.MILK, -1, density));
+        lens.addState(new int[]{android.R.attr.state_activated},
+                new GlassDrawable(glassBackdrop, GlassDrawable.ACTIVE, -1, density));
+        lens.addState(new int[0], new ColorDrawable(Color.TRANSPARENT));
+        lens.setEnterFadeDuration(140);
+        lens.setExitFadeDuration(180);
+        return lens;
+    }
+
+    /** Before each frame: if a layer behind the glass changed, remake the copy, at most about 14 times a second. */
+    private void watchGlass() {
+        int signature = glassSignature();
+        long now = SystemClock.uptimeMillis();
+        if (signature == glassSignature && now - glassCaptured < 30_000) return;
+        long wait = 70 - (now - glassCaptured);
+        if (wait <= 0) {
+            captureGlass();
+        } else {
+            handler.removeCallbacks(glassCapture);
+            handler.postDelayed(glassCapture, wait);
+        }
+    }
+
+    private void captureGlass() {
+        handler.removeCallbacks(glassCapture);
+        glassSignature = glassSignature();
+        glassCaptured = SystemClock.uptimeMillis();
+        glassBackdrop.capture(root, glassLayers);
+    }
+
+    /** What the layers show now: their visibility, alpha, position, picture and background. */
+    private int glassSignature() {
+        int h = 17;
+        for (View v : glassLayers) {
+            h = h * 31 + (v.getVisibility() == View.VISIBLE ? Math.round(v.getAlpha() * 80) : -1);
+            h = h * 31 + Math.round(v.getTranslationY());
+            if (v instanceof ImageView) h = h * 31 + System.identityHashCode(((ImageView) v).getDrawable());
+            Drawable bg = v.getBackground();
+            h = h * 31 + (bg == null ? 0 : System.identityHashCode(bg) + bg.getAlpha());
+        }
+        return h;
     }
 
     // ---- cinematic shelf -------------------------------------------------------------------------

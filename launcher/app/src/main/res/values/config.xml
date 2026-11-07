@@ -536,6 +536,11 @@
         <item>com.google.android.youtube.tvmusic</item>
         <item>com.android.bluetooth</item>
     </string-array>
+    <!-- Liquid glass: the clock and date as one glass panel with the greeting beside the date, the top buttons in one
+         glass bar with a milky lens on the focused one, and the dock band in the same glass. On Android 13 and later
+         the glass shows a softened copy of what is behind it, bent at the edges like a lens; before that it is
+         frosted. Can also be set with "liquid_glass" in a theme's config.json. -->
+    <bool name="liquid_glass">false</bool>
     <!-- true: when the focus moves to an app of another colour, the ambient glow takes the new colour in one frame
          instead of dimming and fading back in. Each frame of that fade repaints the whole screen, about 40 per key
          press, which a slow GPU such as the Mali-G52 cannot keep up with. Can also be set with "glow_snap" in a
