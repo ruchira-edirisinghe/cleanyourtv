@@ -4358,6 +4358,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (LibraryApps.save(this, pkg, false)) reloadApps(false);
             else Toast.makeText(this, R.string.library_save_failed, Toast.LENGTH_LONG).show();
         });
+        // Stremio not linked (never, or disconnected and its card hidden): link it from its own tile.
+        if (continueRow != null && StremioSync.PACKAGE.equals(pkg) && !StremioSync.linked(this)) {
+            addSettingsMenuRow(rows, popup, R.string.continue_connect_title, continueRow::connectStremio);
+        }
         // Some firmware has no App info page at all; a row that only toasts "can't open" helps nobody.
         Intent info = adapter.isInputAt(position) ? null : SystemSettings.appInfo(this, pkg);
         if (info != null) addSettingsMenuRow(rows, popup, R.string.library_app_info, () -> open(info));

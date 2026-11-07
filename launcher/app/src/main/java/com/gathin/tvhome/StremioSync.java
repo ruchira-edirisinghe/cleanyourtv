@@ -61,6 +61,10 @@ final class StremioSync {
         prefs(ctx).edit().putBoolean(KEY_CONNECT_HIDDEN, true).apply();
     }
 
+    /** Brings the "Connect Stremio" card back after it was hidden. */
+    static void showConnect(Context ctx) {
+        prefs(ctx).edit().remove(KEY_CONNECT_HIDDEN).apply();
+    }
 
     static Set<String> dismissed(Context ctx) {
         return new HashSet<>(prefs(ctx).getStringSet(KEY_DISMISSED, new HashSet<>()));

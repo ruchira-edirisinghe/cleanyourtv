@@ -609,6 +609,13 @@ final class ContinueRow {
 
     // ---- linking Stremio ----------------------------------------------------------------------------------------
 
+    /** Hold OK on the Stremio tile: the Connect card comes back (if it was hidden) and the link code shows. */
+    void connectStremio() {
+        StremioSync.showConnect(activity);
+        refresh();
+        showLinkDialog();
+    }
+
     /** Shows a link code and its QR code, and waits (up to the code's ten minutes) for the owner to approve it. */
     private void showLinkDialog() {
         if (linkDialog != null && linkDialog.isShowing()) return;
