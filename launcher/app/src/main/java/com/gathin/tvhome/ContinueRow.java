@@ -41,7 +41,7 @@ import java.util.function.Consumer;
 /**
  * The Continue watching row (continue_watching): a sideways row of cards under the dock, laid over the room
  * DockDecoration leaves below the dock's band, so the grid's positions and its navigation stay as they are. Each card
- * shows its picture, the app's icon, how far in it is, its name and the time left.
+ * shows its picture, the app's icon, how far in it is, its name and the time left; Stremio's new episodes say so.
  * OK opens it, holding OK offers to remove it. Pictures load off the main thread and are kept on disk.
  */
 final class ContinueRow {
@@ -280,7 +280,20 @@ final class ContinueRow {
                 card.addView(badge, badgeLp);
             }
 
-            if (item.duration > 0) {
+            if (item.isNew) {
+                TextView chip = text(9.5f, 0xFFFFFFFF, true);
+                chip.setText(activity.getString(R.string.continue_new_episode).toUpperCase(java.util.Locale.getDefault()));
+                chip.setLetterSpacing(0.08f);
+                GradientDrawable chipBg = new GradientDrawable();
+                chipBg.setColor(STREMIO_PURPLE);
+                chipBg.setCornerRadius(dp(4));
+                chip.setBackground(chipBg);
+                chip.setPadding(dp(6), dp(2), dp(6), dp(2));
+                FrameLayout.LayoutParams chipLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
+                chipLp.setMargins(dp(8), 0, 0, dp(8));
+                card.addView(chip, chipLp);
+            } else if (item.duration > 0) {
                 FrameLayout track = new FrameLayout(activity);
                 GradientDrawable trackBg = new GradientDrawable();
                 trackBg.setColor(0x4DFFFFFF);
@@ -373,8 +386,9 @@ final class ContinueRow {
         return t;
     }
 
-    /** "S1 E3 · 23 min left" or "Channel · 1 h 5 min left". */
+    /** "S1 E3 · 23 min left", "Channel · 1 h 5 min left", or a new episode's "S2 E6 · Name". */
     private String metaLine(WatchHistory.Item item) {
+        if (item.isNew) return item.subtitle;
         String left = "";
         if (item.duration > 0) {
             long min = Math.max(1, (item.duration - item.position) / 60_000L);

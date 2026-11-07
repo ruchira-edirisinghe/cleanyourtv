@@ -160,12 +160,13 @@
     <string name="clock_format_24">24-hour</string>
     <!-- Continue watching row (continue_watching). -->
     <string name="continue_watching">Continue watching</string>
+    <string name="continue_new_episode">New episode</string>
     <string name="continue_min_left">%1$d min left</string>
     <string name="continue_hours_left">%1$d h %2$d min left</string>
     <string name="continue_remove">Remove from Continue watching</string>
     <string name="continue_open_app">Open %1$s</string>
     <string name="continue_connect_title">Connect Stremio</string>
-    <string name="continue_connect_caption">Your Stremio list here</string>
+    <string name="continue_connect_caption">Your Stremio list and new episodes here</string>
     <string name="continue_hide_connect">Hide this card</string>
     <string name="continue_unlink">Disconnect Stremio</string>
     <string name="stremio_link_title">Connect your Stremio account</string>

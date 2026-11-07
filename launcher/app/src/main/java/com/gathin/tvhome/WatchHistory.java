@@ -54,7 +54,9 @@ final class WatchHistory {
         /** An ACTION_VIEW link that opens it in its app (Stremio), or empty to open the app itself. */
         String link = "";
         long position, duration;
-        /** When it was last played, in milliseconds since the epoch. */
+        /** A new episode of a series in the Stremio library, not yet watched: the card says so. */
+        boolean isNew;
+        /** When it was last played (a new episode: when it came out), in milliseconds since the epoch. */
         long updated;
 
         /** The share watched, 0 when the length is unknown. */
@@ -65,7 +67,7 @@ final class WatchHistory {
         JSONObject toJson() throws JSONException {
             return new JSONObject().put("key", key).put("source", source).put("pkg", pkg).put("title", title)
                     .put("subtitle", subtitle).put("art", art).put("cover", cover).put("link", link).put("position", position)
-                    .put("duration", duration).put("updated", updated);
+                    .put("duration", duration).put("updated", updated).put("isNew", isNew);
         }
 
         static Item fromJson(JSONObject o) {
@@ -81,6 +83,7 @@ final class WatchHistory {
             it.position = o.optLong("position");
             it.duration = o.optLong("duration");
             it.updated = o.optLong("updated");
+            it.isNew = o.optBoolean("isNew");
             return it;
         }
     }
