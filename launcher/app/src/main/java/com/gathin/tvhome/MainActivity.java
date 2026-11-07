@@ -173,6 +173,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private final Map<String, Bitmap> heroArtCache = new HashMap<>();
     /** The app whose artwork heroArt shows, so focusing it again only fades it back in. */
     private String heroArtKey;
+    /** hero_banners: each dock app's picture (HeroBanners), decoded off the main thread, by package. */
+    private final Map<String, Bitmap> heroBannerCache = new HashMap<>();
+    /** Packages found to have no picture, so they are not looked up on every focus. */
+    private final Set<String> heroBannerMissing = new HashSet<>();
+    private final Set<String> heroBannerLoading = new HashSet<>();
+    private boolean heroBanners;
+    private java.util.concurrent.ExecutorService heroBannerLoader;
     /** The focus glow's colour while the cinematic shelf tints it, 0 for plain white glass. */
     private int glassAccent;
     private int ambientColor = -1;
@@ -535,6 +542,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroDotsShown = cfg.cinematicDots;
         cinematicWhiteFocus = cfg.cinematicWhiteFocus;
         heroArtAlpha = cfg.cinematicArt / 100f;
+        heroBanners = cinematic && cfg.heroBanners;
         if (cinematic) setUpCinematicShelf(cfg.cinematicScrim);
         // dock_title false: the name above the dock (and the cinematic lines under it) never shows; the glow
         // still follows the dock.
@@ -1263,6 +1271,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // An updated app may bring new artwork; the backdrop is cheap to make again.
         heroArtCache.clear();
         heroArtKey = null;
+        heroBannerMissing.clear();   // a picture pushed since is found on the next focus
         // One LEANBACK query for both the tiles and the card checks.
         final List<ResolveInfo> leanback = getPackageManager().queryIntentActivities(
                 new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER), 0);
@@ -1362,6 +1371,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.getRecycledViewPool().clear();
         heroArtCache.clear();
         heroArtKey = null;
+        heroBannerCache.clear();
+        heroBannerMissing.clear();
         wallpaperPlayer.releaseForMemoryPressure();
         tileRefresh.invalidate();
     }
@@ -1381,6 +1392,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (heroBannerLoader != null) heroBannerLoader.shutdownNow();
         RemoteKeys.release(this);
         cancelHoldOk();
         if (gameDay != null) gameDay.shutdown();
@@ -2025,41 +2037,97 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 new int[]{0x00060406, 0x00060406, 0xDB060406, 0xFF060406}, new float[]{0f, 0.28f, 0.58f, 0.76f},
                 Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, w, h, paint);
+        if (heroBanners) {
+            // A full picture can be bright right under the top bar: shade the top so the clock and pills stay readable.
+            paint.setShader(new LinearGradient(0, 0, 0, h * 0.3f,
+                    new int[]{0xB3060406, 0x66060406, 0x00060406}, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+            canvas.drawRect(0, 0, w, h * 0.3f, paint);
+        }
         BitmapDrawable scrim = new BitmapDrawable(getResources(), bmp);
         scrim.setGravity(Gravity.FILL);
         return scrim;
     }
 
-    /** Swaps the backdrop to this app's artwork: fade out, swap, fade in, the way the shelf's name changes. */
+    /**
+     * Swaps the backdrop to this app's artwork: fade out, swap, fade in, the way the shelf's name changes. With
+     * hero_banners an app's own picture is shown in full instead of the softened artwork, once it is decoded.
+     */
     private void showHeroArt(int position) {
         String key = adapter.keyAt(position);
         if (key == null) return;
+        String pkg = adapter.packageAt(position);
+        Bitmap banner = null;
+        if (heroBanners && pkg != null) {
+            banner = heroBannerCache.get(pkg);
+            if (banner == null) loadHeroBanner(pkg);
+            // The other dock apps' pictures, so moving along the dock finds them ready.
+            for (int i = 0; i < Math.min(adapter.dockFilled(), COLUMNS); i++) loadHeroBanner(adapter.packageAt(i));
+        }
+        final boolean isBanner = banner != null;
+        final float target = isBanner ? 1f : heroArtAlpha;
+        String showKey = isBanner ? "banner:" + pkg : key;
         heroArt.animate().cancel();
-        if (key.equals(heroArtKey)) {
-            fadeHeroArt(420);
+        if (showKey.equals(heroArtKey)) {
+            fadeHeroArt(420, target);
             return;
         }
-        Bitmap art = heroArtCache.get(key);
+        Bitmap art = banner;
         if (art == null) {
-            art = HeroArt.from(adapter.artworkAt(position));
-            if (art != null) heroArtCache.put(key, art);
+            art = heroArtCache.get(key);
+            if (art == null) {
+                art = HeroArt.from(adapter.artworkAt(position));
+                if (art != null) heroArtCache.put(key, art);
+            }
         }
-        heroArtKey = key;
+        heroArtKey = showKey;
         final Bitmap next = art;
         if (!animations || reducedMotion || heroArt.getAlpha() == 0f) {
-            heroArt.setImageBitmap(next);
-            fadeHeroArt(600);
+            setHeroImage(next, isBanner);
+            fadeHeroArt(600, target);
             return;
         }
-        heroArt.animate().alpha(0f).setDuration(140).withEndAction(() -> {
-            heroArt.setImageBitmap(next);
-            heroArt.animate().alpha(heroArtAlpha).setDuration(420).start();
+        heroArt.animate().alpha(0f).setDuration(isBanner ? 180 : 140).withEndAction(() -> {
+            setHeroImage(next, isBanner);
+            heroArt.animate().alpha(target).setDuration(isBanner ? 520 : 420).start();
         }).start();
     }
 
-    private void fadeHeroArt(int ms) {
-        if (!animations) heroArt.setAlpha(heroArtAlpha);
-        else heroArt.animate().alpha(heroArtAlpha).setDuration(reducedMotion ? Math.min(ms, Motion.REDUCED_MS) : ms).start();
+    /** The softened artwork is stretched over the screen; a picture keeps its proportions and fills it. */
+    private void setHeroImage(Bitmap bitmap, boolean banner) {
+        heroArt.setScaleType(banner ? ImageView.ScaleType.CENTER_CROP : ImageView.ScaleType.FIT_XY);
+        heroArt.setImageBitmap(bitmap);
+    }
+
+    /** Decodes a dock app's hero_banners picture in the background; shows it if that app is still focused. */
+    private void loadHeroBanner(String pkg) {
+        if (pkg == null || heroBannerCache.containsKey(pkg) || heroBannerMissing.contains(pkg)
+                || !heroBannerLoading.add(pkg)) return;
+        if (heroBannerLoader == null) heroBannerLoader = java.util.concurrent.Executors.newSingleThreadExecutor();
+        final android.content.Context app = getApplicationContext();
+        final int w = root.getWidth() > 0 ? root.getWidth() : getResources().getDisplayMetrics().widthPixels;
+        final int h = root.getHeight() > 0 ? root.getHeight() : getResources().getDisplayMetrics().heightPixels;
+        heroBannerLoader.execute(() -> {
+            File f = HeroBanners.file(app, pkg);
+            final Bitmap b = f == null ? null : HeroBanners.decode(f, w, h);
+            runOnUiThread(() -> {
+                heroBannerLoading.remove(pkg);
+                if (isDestroyed()) return;
+                if (b == null) {
+                    heroBannerMissing.add(pkg);
+                    return;
+                }
+                heroBannerCache.put(pkg, b);
+                if (heroShown && DockSlots.inDockRow(dockRow, singleRow, lastFocused, COLUMNS)
+                        && pkg.equals(adapter.packageAt(lastFocused))) {
+                    showHeroArt(lastFocused);
+                }
+            });
+        });
+    }
+
+    private void fadeHeroArt(int ms, float target) {
+        if (!animations) heroArt.setAlpha(target);
+        else heroArt.animate().alpha(target).setDuration(reducedMotion ? Math.min(ms, Motion.REDUCED_MS) : ms).start();
     }
 
     /** "Last opened yesterday, 9:40 PM", the time in white; nothing (but the same height) when it was never seen. */

@@ -281,6 +281,8 @@ final class Config {
     int gridColumns;
     /** The grid under the dock as rounded square icons with their names (config.xml, icon_grid). Set by load(). */
     boolean iconGrid;
+    /** With cinematic_home, heroes/<package>.jpg behind the shelf (config.xml, hero_banners). Set by load(). */
+    boolean heroBanners;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, List<String> libraryExcludedApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -543,6 +545,7 @@ final class Config {
         boolean dockBandAll = res.getBoolean(R.bool.dock_band_all);
         int gridColumns = res.getInteger(R.integer.grid_columns);
         boolean iconGrid = res.getBoolean(R.bool.icon_grid);
+        boolean heroBanners = res.getBoolean(R.bool.hero_banners);
         boolean applied = false;
 
         File dir = dir(ctx);
@@ -658,6 +661,7 @@ final class Config {
             dockBandAll = bool(json, "dock_band_all", dockBandAll);
             gridColumns = integer(json, "grid_columns", gridColumns, 0, 8);
             iconGrid = bool(json, "icon_grid", iconGrid);
+            heroBanners = bool(json, "hero_banners", heroBanners);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
         }
@@ -726,6 +730,7 @@ final class Config {
                 Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap);
         built.gridColumns = Math.max(0, Math.min(8, gridColumns));
         built.iconGrid = iconGrid;
+        built.heroBanners = heroBanners;
         return built;
     }
 

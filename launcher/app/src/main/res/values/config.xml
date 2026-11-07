@@ -499,6 +499,10 @@
          theme's wallpaper show through. A theme can set "cinematic_scrim" and "cinematic_art". -->
     <integer name="cinematic_scrim">100</integer>
     <integer name="cinematic_art">50</integer>
+    <!-- With cinematic_home, a full picture per dock app behind the shelf instead of its softened artwork:
+         heroes/<package>.jpg in the theme folder (content write uri content://com.gathin.tvhome.theme/heroes/<package>.jpg).
+         An app without one keeps the softened artwork. Can also be set with "hero_banners" in a theme's config.json. -->
+    <bool name="hero_banners">true</bool>
 
     <!-- The glow behind the dock in the focused app's colour (red for YouTube, blue for Prime Video). false keeps
          only background_color or the wallpaper behind everything. Can also be set with "ambient_glow": false in a
