@@ -185,6 +185,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** continue_watching: the row under the dock, laid over the room the dock's decoration leaves; null when off. */
     private ContinueRow continueRow;
     private DockDecoration dockDecoration;
+    /** The Continue watching card whose cover the top banner shows, or is loading. */
+    private String continueCoverKey;
     private int gridGlowColor;
     private ValueAnimator gridGlowAnimator;
     /** The focus glow's colour while the cinematic shelf tints it, 0 for plain white glass. */
@@ -2400,7 +2402,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /**
      * A Continue watching card is focused: the dock's highlight, name and glow step back, the row scrolls fully into
-     * view, and the dock app's picture behind the shelf fades out.
+     * view, and the top banner shows the item's cover from the web (CoverArt) once it is loaded.
      */
     private void showContinue(WatchHistory.Item item) {
         hideGlass();
@@ -2423,9 +2425,41 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (motion) grid.smoothScrollBy(0, dy);
             else grid.scrollBy(0, dy);
         }
-        heroArtKey = null;
-        heroArt.animate().cancel();
-        fadeHeroArt(300, 0f);
+        if (item == null) {
+            continueCoverKey = null;
+            heroArt.animate().cancel();
+            fadeHeroArt(300, 0f);
+            return;
+        }
+        final String key = "continue:" + item.source + "|" + item.key;
+        continueCoverKey = key;
+        if (key.equals(heroArtKey)) {
+            heroArt.setVisibility(View.VISIBLE);
+            heroArt.animate().cancel();
+            fadeHeroArt(300, 1f);
+            return;
+        }
+        int width = root.getWidth() > 0 ? root.getWidth() : getResources().getDisplayMetrics().widthPixels;
+        continueRow.cover(item, width, bitmap -> {
+            if (isDestroyed() || !key.equals(continueCoverKey) || !continueRow.hasFocus()) return;
+            heroArt.animate().cancel();
+            if (bitmap == null) {
+                heroArtKey = null;
+                fadeHeroArt(300, 0f);
+                return;
+            }
+            heroArt.setVisibility(View.VISIBLE);
+            heroArtKey = key;
+            if (!motion || heroArt.getAlpha() == 0f) {
+                setHeroImage(bitmap, true);
+                fadeHeroArt(500, 1f);
+                return;
+            }
+            heroArt.animate().alpha(0f).setDuration(180).withEndAction(() -> {
+                setHeroImage(bitmap, true);
+                heroArt.animate().alpha(1f).setDuration(520).start();
+            }).start();
+        });
     }
 
     // ---- grid glow -------------------------------------------------------------------------------

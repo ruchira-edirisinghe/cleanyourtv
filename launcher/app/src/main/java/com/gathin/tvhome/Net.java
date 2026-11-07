@@ -15,8 +15,8 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 
 /**
- * The few web requests the Continue watching row makes (continue_watching): Stremio's account list and the
- * pictures of its cards. Blocking calls with short timeouts, never on the main thread; any failure is null.
+ * The few web requests the Continue watching row makes (continue_watching): Stremio's account list, cover pictures
+ * and the lookups that find them. Blocking calls with short timeouts, never on the main thread; any failure is null.
  */
 final class Net {
     private static final String TAG = "TvHomeNet";

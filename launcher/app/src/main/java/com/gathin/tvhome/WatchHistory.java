@@ -49,6 +49,8 @@ final class WatchHistory {
         String subtitle = "";
         /** A picture: a file in the launcher's storage, or an http(s) link for Stremio; empty for none. */
         String art = "";
+        /** A big cover picture from the web for the top banner (CoverArt), or empty. */
+        String cover = "";
         /** An ACTION_VIEW link that opens it in its app (Stremio), or empty to open the app itself. */
         String link = "";
         long position, duration;
@@ -62,7 +64,7 @@ final class WatchHistory {
 
         JSONObject toJson() throws JSONException {
             return new JSONObject().put("key", key).put("source", source).put("pkg", pkg).put("title", title)
-                    .put("subtitle", subtitle).put("art", art).put("link", link).put("position", position)
+                    .put("subtitle", subtitle).put("art", art).put("cover", cover).put("link", link).put("position", position)
                     .put("duration", duration).put("updated", updated);
         }
 
@@ -74,6 +76,7 @@ final class WatchHistory {
             it.title = o.optString("title");
             it.subtitle = o.optString("subtitle");
             it.art = o.optString("art");
+            it.cover = o.optString("cover");
             it.link = o.optString("link");
             it.position = o.optLong("position");
             it.duration = o.optLong("duration");

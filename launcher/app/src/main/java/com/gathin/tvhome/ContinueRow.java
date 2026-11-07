@@ -31,9 +31,12 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 /**
  * The Continue watching row (continue_watching): a sideways row of cards under the dock, laid over the room
@@ -44,7 +47,7 @@ import java.util.concurrent.Executors;
 final class ContinueRow {
 
     interface Host {
-        /** A card took focus: the row scrolls into view. Null for the Connect card. */
+        /** A card took focus: its cover goes in the top banner and the row scrolls into view. Null for the Connect card. */
         void onContinueFocused(View card, WatchHistory.Item item);
 
         /** Up from the row: to the dock tile nearest this screen x. */
@@ -69,6 +72,13 @@ final class ContinueRow {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService pictures = Executors.newFixedThreadPool(2);
     private final ExecutorService sync = Executors.newSingleThreadExecutor();
+    /** The last few covers decoded for the banner, by picture link. */
+    private final Map<String, Bitmap> covers = new LinkedHashMap<String, Bitmap>(4, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, Bitmap> eldest) {
+            return size() > 3;
+        }
+    };
 
     final LinearLayout view;
     private final TextView header;
@@ -415,7 +425,7 @@ final class ContinueRow {
     // ---- pictures -----------------------------------------------------------------------------------------------
 
     private void loadCardArt(WatchHistory.Item item, ImageView art, View card) {
-        String src = item.art;
+        String src = !item.art.isEmpty() ? item.art : item.cover;
         art.setTag(src);
         if (src.isEmpty()) {
             Drawable banner = appBanner(item.pkg);
@@ -438,6 +448,27 @@ final class ContinueRow {
         });
     }
 
+    /** The cover for the top banner, at the screen's width: from memory, the disk or the web. */
+    void cover(WatchHistory.Item item, int width, Consumer<Bitmap> done) {
+        String src = !item.cover.isEmpty() ? item.cover : item.art;
+        if (src.isEmpty()) {
+            done.accept(null);
+            return;
+        }
+        Bitmap cached = covers.get(src);
+        if (cached != null) {
+            done.accept(cached);
+            return;
+        }
+        pictures.execute(() -> {
+            Bitmap b = picture(src, width);
+            main.post(() -> {
+                if (b != null) covers.put(src, b);
+                done.accept(b);
+            });
+        });
+    }
+
     /** A picture by file path or web link, decoded for this width; web pictures are kept in the cache folder. */
     private Bitmap picture(String src, int width) {
         if (src.startsWith("/")) return Net.decodeFile(new File(src), width);
@@ -445,12 +476,17 @@ final class ContinueRow {
         File dir = new File(activity.getCacheDir(), "continue_pictures");
         if (!dir.isDirectory() && !dir.mkdirs()) return Net.bitmap(src, width);
         File file = new File(dir, Integer.toHexString(src.hashCode()) + "_" + src.length() + ".img");
-        if (!Net.downloadTo(src, file)) return null;
+        if (!Net.downloadTo(src, file) && src.contains("/maxresdefault.jpg")) {
+            // Older or smaller YouTube videos have no full-size thumbnail: the next size down always exists.
+            String hq = src.replace("/maxresdefault.jpg", "/hqdefault.jpg");
+            if (!Net.downloadTo(hq, file)) return null;
+        }
         return Net.decodeFile(file, width);
     }
 
     /** Home is in the background and memory is short: let go of the decoded pictures. */
     void release() {
+        covers.clear();
         signature = "";
         for (View c : cards) {
             ImageView art = (ImageView) ((ViewGroup) c).getChildAt(0);
@@ -464,6 +500,10 @@ final class ContinueRow {
         Intent intent = null;
         if (!item.link.isEmpty()) {
             String link = item.link;
+            // A YouTube video starts where it was left.
+            if (link.startsWith("https://www.youtube.com/watch") && item.position > 0) {
+                link += "&t=" + (item.position / 1000) + "s";
+            }
             intent = new Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(item.pkg);
             if (activity.getPackageManager().resolveActivity(intent, 0) == null) intent = null;
         }

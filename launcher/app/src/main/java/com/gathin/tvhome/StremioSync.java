@@ -134,6 +134,7 @@ final class StremioSync {
             it.duration = state.optLong("duration");
             it.updated = time(state.optString("lastWatched"), li.optString("_mtime"));
             it.art = id.startsWith("tt") ? "https://images.metahub.space/background/medium/" + id + "/img" : li.optString("poster");
+            it.cover = id.startsWith("tt") ? "https://images.metahub.space/background/large/" + id + "/img" : it.art;
             it.link = "stremio:///detail/" + Uri.encode(type) + "/" + Uri.encode(id)
                     + (videoId.isEmpty() ? "" : "/" + Uri.encode(videoId));
             items.add(it);

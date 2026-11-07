@@ -231,8 +231,21 @@ public class WatchListener extends NotificationListenerService {
             item.updated = System.currentTimeMillis();
             final Bitmap picture = art;
             final Uri link = artUri;
+            final String channel = subtitle;
             io.execute(() -> {
                 item.art = saveArt(key, picture, link);
+                // The cover and the item's own link are looked up once, the first time it is noted.
+                WatchHistory.Item before = WatchHistory.find(WatchListener.this, key);
+                if (before != null && (!before.cover.isEmpty() || !before.link.isEmpty())) {
+                    item.cover = before.cover;
+                    item.link = before.link;
+                } else {
+                    CoverArt.Found found = CoverArt.find(item.pkg, item.title, channel);
+                    if (found != null) {
+                        item.cover = found.cover;
+                        item.link = found.link;
+                    }
+                }
                 WatchHistory.put(WatchListener.this, item);
             });
         }
