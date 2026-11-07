@@ -3,6 +3,9 @@ package com.gathin.tvhome;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.drawable.Drawable;
+import android.os.Handler;
+import android.view.PixelCopy;
+import android.view.SurfaceView;
 import android.view.View;
 import android.view.ViewGroup;
 
@@ -12,9 +15,9 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * liquid_glass: a small, softened copy of what is behind the glass (Home's backdrop layers), for {@link GlassDrawable}
- * to bend and lighten. Two bitmaps take turns, so a drawable never reads one while it is being redrawn; every update
- * invalidates the drawables that use it.
+ * liquid_glass: a small, softened copy of what is behind the glass (Home's backdrop layers, or a frame of the
+ * screensaver's video), for {@link GlassDrawable} to bend and lighten. Two bitmaps take turns, so a drawable never reads one while it
+ * is being redrawn; every update invalidates the drawables that use it.
  */
 final class GlassBackdrop {
     static final int W = 160, H = 90;
@@ -26,6 +29,8 @@ final class GlassBackdrop {
     private final int[] temp = new int[W * H];
     private final List<WeakReference<Drawable>> users = new ArrayList<>();
     private int current = -1;
+    /** A PixelCopy is on its way. */
+    private boolean copying;
     private int generation;
     /** The screen size the copy stands for, in pixels. */
     int screenW = 1920, screenH = 1080;
@@ -68,6 +73,24 @@ final class GlassBackdrop {
             c.restoreToCount(save);
         }
         publish(target);
+    }
+
+    /** The screensaver: a frame of the video on this surface, copied and scaled down on the GPU (no-op while one is on its way). */
+    void capture(SurfaceView view, Handler handler) {
+        if (copying || !view.getHolder().getSurface().isValid() || view.getWidth() == 0) return;
+        Bitmap target = buffers[next()];
+        copying = true;
+        try {
+            PixelCopy.request(view, target, result -> {
+                copying = false;
+                if (result != PixelCopy.SUCCESS) return;
+                screenW = view.getWidth();
+                screenH = view.getHeight();
+                publish(target);
+            }, handler);
+        } catch (IllegalArgumentException e) {
+            copying = false;   // the surface went away
+        }
     }
 
     private int next() {

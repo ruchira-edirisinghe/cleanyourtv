@@ -50,6 +50,8 @@ final class GlassDrawable extends Drawable {
     static final Look MILK = new Look(0xD6FFFFFF, 0.1f, 1.2f, 10f);
     /** A button switched on (pill_bg's activated blue). */
     static final Look ACTIVE = new Look(0x993B82F6, 0.1f, 1f, 10f);
+    /** Over the screensaver's bright video: darker, so white text stays readable. */
+    static final Look SMOKE = new Look(0x52060610, 0.05f, 1.1f, 22f);
 
     private final GlassBackdrop backdrop;
     private final Look look;

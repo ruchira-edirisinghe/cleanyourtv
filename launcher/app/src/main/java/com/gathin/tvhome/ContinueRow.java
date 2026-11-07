@@ -325,7 +325,7 @@ final class ContinueRow {
                 card.addView(track, trackLp);
             }
             title.setText(item.title);
-            meta.setText(metaLine(item));
+            meta.setText(metaLine(activity, item));
             loadCardArt(item, art, card);
         }
 
@@ -402,13 +402,13 @@ final class ContinueRow {
     }
 
     /** "S1 E3 · 23 min left", "Channel · 1 h 5 min left", or a new episode's "S2 E6 · Name". */
-    private String metaLine(WatchHistory.Item item) {
+    static String metaLine(Context ctx, WatchHistory.Item item) {
         if (item.isNew) return item.subtitle;
         String left = "";
         if (item.duration > 0) {
             long min = Math.max(1, (item.duration - item.position) / 60_000L);
-            left = min >= 60 ? activity.getString(R.string.continue_hours_left, (int) (min / 60), (int) (min % 60))
-                    : activity.getString(R.string.continue_min_left, (int) min);
+            left = min >= 60 ? ctx.getString(R.string.continue_hours_left, (int) (min / 60), (int) (min % 60))
+                    : ctx.getString(R.string.continue_min_left, (int) min);
         }
         if (item.subtitle.isEmpty()) return left;
         return left.isEmpty() ? item.subtitle : item.subtitle + " · " + left;
@@ -464,7 +464,7 @@ final class ContinueRow {
             return;
         }
         pictures.execute(() -> {
-            Bitmap b = picture(src, cardW);
+            Bitmap b = picture(activity, src, cardW);
             main.post(() -> {
                 if (!src.equals(art.getTag())) return;
                 if (b != null) {
@@ -492,7 +492,7 @@ final class ContinueRow {
             return;
         }
         pictures.execute(() -> {
-            Bitmap b = picture(src, width);
+            Bitmap b = picture(activity, src, width);
             main.post(() -> {
                 if (b != null) covers.put(src, b);
                 done.accept(b);
@@ -501,10 +501,10 @@ final class ContinueRow {
     }
 
     /** A picture by file path or web link, decoded for this width; web pictures are kept in the cache folder. */
-    private Bitmap picture(String src, int width) {
+    static Bitmap picture(Context ctx, String src, int width) {
         if (src.startsWith("/")) return Net.decodeFile(new File(src), width);
         if (!src.startsWith("http")) return null;
-        File dir = new File(activity.getCacheDir(), "continue_pictures");
+        File dir = new File(ctx.getCacheDir(), "continue_pictures");
         if (!dir.isDirectory() && !dir.mkdirs()) return Net.bitmap(src, width);
         File file = new File(dir, Integer.toHexString(src.hashCode()) + "_" + src.length() + ".img");
         if (!Net.downloadTo(src, file) && src.contains("/maxresdefault.jpg")) {
@@ -528,6 +528,18 @@ final class ContinueRow {
     // ---- actions ------------------------------------------------------------------------------------------------
 
     private void open(WatchHistory.Item item) {
+        Intent intent = intent(activity, item);
+        if (intent == null) return;
+        try {
+            activity.startActivity(intent);
+            LastOpened.record(activity, item.pkg);
+        } catch (ActivityNotFoundException | SecurityException e) {
+            Toast.makeText(activity, activity.getString(R.string.cant_open, item.title), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /** What opens the item: its link in its app (YouTube at the time it was left), or else the app; null if neither. */
+    static Intent intent(Context ctx, WatchHistory.Item item) {
         Intent intent = null;
         if (!item.link.isEmpty()) {
             String link = item.link;
@@ -536,21 +548,15 @@ final class ContinueRow {
                 link += "&t=" + (item.position / 1000) + "s";
             }
             intent = new Intent(Intent.ACTION_VIEW, Uri.parse(link)).setPackage(item.pkg);
-            if (activity.getPackageManager().resolveActivity(intent, 0) == null) intent = null;
+            if (ctx.getPackageManager().resolveActivity(intent, 0) == null) intent = null;
         }
         if (intent == null) {
-            PackageManager pm = activity.getPackageManager();
+            PackageManager pm = ctx.getPackageManager();
             intent = pm.getLeanbackLaunchIntentForPackage(item.pkg);
             if (intent == null) intent = pm.getLaunchIntentForPackage(item.pkg);
         }
-        if (intent == null) return;
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        try {
-            activity.startActivity(intent);
-            LastOpened.record(activity, item.pkg);
-        } catch (ActivityNotFoundException | SecurityException e) {
-            Toast.makeText(activity, activity.getString(R.string.cant_open, item.title), Toast.LENGTH_SHORT).show();
-        }
+        if (intent != null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        return intent;
     }
 
     private void showMenu(WatchHistory.Item item) {

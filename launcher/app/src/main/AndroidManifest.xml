@@ -211,6 +211,19 @@
             </intent-filter>
         </service>
 
+        <!-- The live screensaver: looping scenes from the theme folder's saver/, a glass clock and Continue watching
+             cards. `settings put secure screensaver_components com.gathin.tvhome/.LiveSaverDream` over adb. -->
+        <service
+            android:name=".LiveSaverDream"
+            android:label="@string/saver_name"
+            android:exported="true"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+
         <!-- tools/theme.sh writes the theme through this where the shell can't reach Android/data;
              see ThemeProvider. WRITE_SECURE_SETTINGS: the adb shell has it, ordinary apps don't. -->
         <provider

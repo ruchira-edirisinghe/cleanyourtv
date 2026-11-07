@@ -10,6 +10,9 @@ final class ThemeFiles {
     static final String HEROES = "heroes";
     /** icon_grid: an app's own square artwork for its grid tile, named after its package (icons/com.example.app.png). */
     static final String ICONS = "icons";
+    /** The live screensaver's looping videos (LiveSaverDream), any names (saver/neon-city.mp4). */
+    static final String SAVER = "saver";
+    private static final Pattern VIDEO = Pattern.compile("[A-Za-z0-9_.-]+\\.(mp4|webm|mkv)", Pattern.CASE_INSENSITIVE);
     /** The names tools/theme.sh accepts for a collection image, and the types WallpaperRotation reads. */
     private static final Pattern IMAGE = Pattern.compile("[A-Za-z0-9_.-]+\\.(jpg|jpeg|png|webp)",
             Pattern.CASE_INSENSITIVE);
@@ -34,12 +37,19 @@ final class ThemeFiles {
         if (segments.size() == 2 && ICONS.equals(segments.get(0)) && collectionImage(segments.get(1))) {
             return ICONS + "/" + segments.get(1);
         }
+        if (segments.size() == 2 && SAVER.equals(segments.get(0)) && saverVideo(segments.get(1))) {
+            return SAVER + "/" + segments.get(1);
+        }
         return null;
     }
 
     /** True for "wallpapers" alone: a delete of it clears the collection's images. */
     static boolean isCollection(List<String> segments) {
         return segments != null && segments.size() == 1 && WALLPAPERS.equals(segments.get(0));
+    }
+
+    static boolean saverVideo(String name) {
+        return name != null && !name.startsWith(".") && VIDEO.matcher(name).matches();
     }
 
     static boolean collectionImage(String name) {

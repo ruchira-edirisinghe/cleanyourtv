@@ -175,4 +175,10 @@
     <string name="stremio_link_failed">Couldn\'t reach Stremio. Check the internet and try again.</string>
     <string name="stremio_link_expired">The code ran out. Open this again for a new one.</string>
     <string name="stremio_link_done">Stremio connected</string>
+    <!-- The live screensaver (LiveSaverDream). -->
+    <string name="saver_name">Live scenes</string>
+    <string name="saver_continue">Continue watching</string>
+    <string name="saver_new_episode">New episode out</string>
+    <string name="saver_ok_hint">Press OK to jump back in</string>
+    <string name="saver_percent">%1$d%%</string>
 </resources>
