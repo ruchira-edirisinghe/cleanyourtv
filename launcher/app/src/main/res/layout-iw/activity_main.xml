@@ -347,6 +347,15 @@
                 android:clipToPadding="false"
                 android:orientation="horizontal">
 
+                <!-- apps_popup: the apps beyond the dock, in a popup (the bar is mirrored here, so it comes first). -->
+                <TextView
+                    android:id="@+id/btnApps"
+                    style="@style/TopButton"
+                    android:visibility="gone"
+                    android:text="@string/quick_apps"
+                    android:drawableStart="@drawable/ic_apps"
+                    android:nextFocusDown="@+id/grid" />
+
                 <TextView
                     android:id="@+id/btnSettings"
                     style="@style/TopButton"

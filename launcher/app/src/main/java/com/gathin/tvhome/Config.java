@@ -295,6 +295,8 @@ final class Config {
     boolean liquidGlass;
     /** The weather beside the live screensaver's clock (config.xml, saver_weather), for weather_location. */
     boolean saverWeather;
+    /** The apps beyond the dock in a popup from an Apps pill instead of rows on Home (config.xml, apps_popup). */
+    boolean appsPopup;
     String weatherLocation = "";
     boolean weatherFahrenheit;
 
@@ -566,6 +568,7 @@ final class Config {
         List<String> continueSkip = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.continue_skip)));
         boolean liquidGlass = res.getBoolean(R.bool.liquid_glass);
         boolean saverWeather = res.getBoolean(R.bool.saver_weather);
+        boolean appsPopup = res.getBoolean(R.bool.apps_popup);
         String weatherLocation = res.getString(R.string.weather_location);
         boolean weatherFahrenheit = res.getBoolean(R.bool.weather_fahrenheit);
         boolean applied = false;
@@ -690,6 +693,7 @@ final class Config {
             continueSkip = stringList(json, "continue_skip", continueSkip);
             liquidGlass = bool(json, "liquid_glass", liquidGlass);
             saverWeather = bool(json, "saver_weather", saverWeather);
+            appsPopup = bool(json, "apps_popup", appsPopup);
             weatherLocation = string(json, "weather_location", weatherLocation);
             weatherFahrenheit = bool(json, "weather_fahrenheit", weatherFahrenheit);
             glowStyle = string(json, "glow_style", glowStyle);
@@ -767,6 +771,7 @@ final class Config {
         built.continueSkip = Collections.unmodifiableList(continueSkip);
         built.liquidGlass = liquidGlass;
         built.saverWeather = saverWeather;
+        built.appsPopup = appsPopup;
         built.weatherLocation = weatherLocation.trim();
         built.weatherFahrenheit = weatherFahrenheit;
         return built;

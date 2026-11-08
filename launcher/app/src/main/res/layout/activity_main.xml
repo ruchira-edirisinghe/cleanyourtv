@@ -378,6 +378,15 @@
                     android:text="@string/settings"
                     android:drawableStart="@drawable/ic_settings"
                     android:nextFocusDown="@+id/grid" />
+
+                <!-- apps_popup: the apps beyond the dock, in a popup. -->
+                <TextView
+                    android:id="@+id/btnApps"
+                    style="@style/TopButton"
+                    android:visibility="gone"
+                    android:text="@string/quick_apps"
+                    android:drawableStart="@drawable/ic_apps"
+                    android:nextFocusDown="@+id/grid" />
             </LinearLayout>
         </RelativeLayout>
 

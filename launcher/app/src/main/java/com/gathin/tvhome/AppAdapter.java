@@ -185,6 +185,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private int savedDocked = -1;
     /** Reorder mode: no empty dock slots, so every position holds a tile that can move. */
     private boolean reordering;
+    /** apps_popup: Home shows the dock only, the rest live in the Apps popup (all of them while reordering). */
+    private final boolean appsPopup;
     private final TileListener listener;
     private final int dockSize;
     /** config dock_row: false makes the dock apps the first tiles of one plain grid (names shown, no empty slots). */
@@ -267,6 +269,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         this.gridColumns = grid && cfg.gridColumns > 0 ? cfg.gridColumns : dockSize;
         this.iconGrid = grid && cfg.iconGrid;
         this.inputTiles = cfg.inputTiles;
+        this.appsPopup = grid && cfg.appsPopup;
         // Tiles keep their identity across reload(), so a focused tile stays on its app instead of
         // its view being rebound to whatever app now sits in that slot.
         setHasStableIds(true);
@@ -705,12 +708,30 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     @Override
     public int getItemCount() {
-        return items.size() + (showLibrary ? 1 : 0);
+        return appCount() + (showLibrary ? 1 : 0);
     }
 
-    int appCount() { return items.size(); }
+    /** The tiles Home shows: with apps_popup only the dock, except while reordering. */
+    int appCount() { return cut() ? Math.min(items.size(), dockSize) : items.size(); }
 
-    boolean isLibraryAt(int position) { return showLibrary && position == items.size(); }
+    private boolean cut() { return appsPopup && !reordering; }
+
+    boolean isLibraryAt(int position) { return showLibrary && position == appCount(); }
+
+    /** apps_popup: the positions of the apps in the popup, after the dock up to the "Default home" tile. */
+    int popupStart() { return Math.min(dockSize, items.size()); }
+
+    int popupEnd() { return items.size(); }
+
+    /** The popup's picture of an app: the theme's square art, else its icon, else its banner. */
+    Drawable popupIconAt(int position) {
+        Entry e = items.get(position);
+        return e.custom != null ? e.custom : e.icon != null ? e.icon : e.banner;
+    }
+
+    void launchAt(int position) {
+        if (position >= 0 && position < items.size()) launch(items.get(position));
+    }
 
     @Override public int getItemViewType(int position) {
         if (isLibraryAt(position)) return 1;
@@ -747,7 +768,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     /** Reorder mode on or off; takes effect at the next reload() (empty dock slots are left out while on). */
     void setReordering(boolean on) {
+        boolean was = cut();
         reordering = on;
+        if (was != cut()) notifyDataSetChanged();   // apps_popup: the rows show on Home while reordering
     }
 
     boolean hasEmptySlots() {

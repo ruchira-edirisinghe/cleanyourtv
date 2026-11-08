@@ -64,9 +64,11 @@ import android.view.Window;
 import android.view.animation.AnimationUtils;
 import android.view.animation.LayoutAnimationController;
 import android.widget.FrameLayout;
+import android.widget.GridLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RelativeLayout;
+import android.widget.ScrollView;
 import android.widget.PopupWindow;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -881,6 +883,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             libraryFromTopBar = true;   // closing it goes back to this button, not to the pill after the last row
         });
         btnLibraryTop.setVisibility(cfg.libraryButton && cfg.appLibrary ? View.VISIBLE : View.GONE);
+        View btnApps = findViewById(R.id.btnApps);
+        btnApps.setVisibility(cfg.appsPopup && cfg.dockRow && !cfg.singleRow ? View.VISIBLE : View.GONE);
+        btnApps.setOnClickListener(this::showApps);
         addTopBarApps(cfg.topBarApps, cfg.launchActions);
         iconOnlyButtons = cfg.iconOnlyButtons;
         topMenu = cfg.topMenu;
@@ -940,8 +945,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 return true;
             }
             int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
-            int leftButton = rtlMenuBar ? R.id.btnSettings : firstButton;
-            int rightButton = rtlMenuBar ? firstButton : R.id.btnSettings;
+            // apps_popup: the Apps pill comes after Settings, so the bar ends there.
+            int lastButton = findViewById(R.id.btnApps).getVisibility() == View.VISIBLE ? R.id.btnApps : R.id.btnSettings;
+            int leftButton = rtlMenuBar ? lastButton : firstButton;
+            int rightButton = rtlMenuBar ? firstButton : lastButton;
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return v.getId() == leftButton;
             return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == rightButton;
         };
@@ -951,9 +958,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         btnSettings.setOnKeyListener(pillKeys);
         btnReorder.setOnKeyListener(pillKeys);
         btnLibraryTop.setOnKeyListener(pillKeys);
+        findViewById(R.id.btnApps).setOnKeyListener(pillKeys);
         for (View button : topAppButtons) button.setOnKeyListener(pillKeys);
         if (advancedEffects) {
-            List<View> pills = new ArrayList<>(Arrays.asList(btnInputs, btnWifi, btnVpn, btnReorder, btnLibraryTop, btnSettings));
+            List<View> pills = new ArrayList<>(Arrays.asList(btnInputs, btnWifi, btnVpn, btnReorder, btnLibraryTop,
+                    btnSettings, findViewById(R.id.btnApps)));
             pills.addAll(topAppButtons);
             for (View button : pills) {
                 button.setOnFocusChangeListener((view, focused) -> view.animate()
@@ -3935,6 +3944,126 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /** Dropdown menu under the Inputs pill: HDMI ports (with connection state), AV and Live TV. */
+    /**
+     * apps_popup: the apps beyond the dock as icons in a glass panel hanging under the Apps pill. OK opens one,
+     * holding OK offers Add to dock, Move and App info; Back closes it.
+     */
+    private void showApps(View anchor) {
+        if (openPopup != null || adapter == null) return;
+        int from = adapter.popupStart(), to = adapter.popupEnd();
+        if (from >= to) return;
+        int cols = Math.min(6, to - from);
+        int cellW = Math.round(112 * density), pad = Math.round(8 * density);
+        LinearLayout panel = new LinearLayout(this);
+        panel.setOrientation(LinearLayout.VERTICAL);
+        panel.setBackgroundResource(R.drawable.glass_panel);
+        panel.setPadding(pad, pad, pad, pad);
+        PopupWindow popup = glassPopup(panel, cols * cellW + 2 * pad);
+        GridLayout cells = new GridLayout(this);
+        cells.setColumnCount(cols);
+        for (int p = from; p < to; p++) cells.addView(appsCell(p, cellW, popup));
+        ScrollView scroll = new ScrollView(this);
+        scroll.setVerticalScrollBarEnabled(false);
+        scroll.addView(cells);
+        cells.measure(View.MeasureSpec.makeMeasureSpec(cols * cellW, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.UNSPECIFIED);
+        // Many apps: the panel stops at about two thirds of the screen and scrolls.
+        int max = Math.round(getResources().getDisplayMetrics().heightPixels * 0.66f);
+        panel.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                cells.getMeasuredHeight() > max ? max : ViewGroup.LayoutParams.WRAP_CONTENT));
+        dropIn(popup, panel, anchor, Gravity.END);
+        cells.getChildAt(0).requestFocus();
+    }
+
+    /** One app in the Apps popup: its picture with rounded corners over its name, on white when focused. */
+    private View appsCell(int position, int width, PopupWindow popup) {
+        LinearLayout cell = new LinearLayout(this);
+        cell.setOrientation(LinearLayout.VERTICAL);
+        cell.setGravity(Gravity.CENTER_HORIZONTAL);
+        cell.setFocusable(true);
+        cell.setClickable(true);
+        cell.setBackgroundResource(R.drawable.input_row_bg);
+        int side = Math.round(6 * density);
+        cell.setPadding(side, Math.round(10 * density), side, Math.round(8 * density));
+        ImageView icon = new ImageView(this);
+        icon.setImageDrawable(adapter.popupIconAt(position));
+        icon.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        float radius = 16 * density;
+        icon.setOutlineProvider(new android.view.ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, android.graphics.Outline outline) {
+                outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius);
+            }
+        });
+        icon.setClipToOutline(true);
+        int iconSize = Math.round(72 * density);
+        cell.addView(icon, new LinearLayout.LayoutParams(iconSize, iconSize));
+        TextView name = new TextView(this);
+        name.setText(adapter.labelAt(position));
+        name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
+        name.setTypeface(UiFont.get(this, R.string.font_medium));
+        name.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}},
+                new int[]{0xFF111111, 0xFFFFFFFF}));
+        name.setDuplicateParentStateEnabled(true);
+        name.setSingleLine(true);
+        name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        name.setGravity(Gravity.CENTER_HORIZONTAL);
+        LinearLayout.LayoutParams nl = new LinearLayout.LayoutParams(width - 2 * side,
+                ViewGroup.LayoutParams.WRAP_CONTENT);
+        nl.topMargin = Math.round(8 * density);
+        cell.addView(name, nl);
+        cell.setLayoutParams(new GridLayout.LayoutParams(new ViewGroup.LayoutParams(width,
+                ViewGroup.LayoutParams.WRAP_CONTENT)));
+        cell.setOnClickListener(v -> {
+            popup.dismiss();
+            adapter.launchAt(position);
+        });
+        cell.setOnLongClickListener(v -> {
+            appsMenu(position, v, popup);
+            return true;
+        });
+        return cell;
+    }
+
+    /** Hold OK in the Apps popup: put the app in the dock, move it, or its App info. */
+    private void appsMenu(int position, View cell, PopupWindow apps) {
+        String key = adapter.keyAt(position);
+        String pkg = adapter.packageAt(position);
+        if (key == null || pkg == null) return;
+        View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        LinearLayout rows = panel.findViewById(R.id.rows);
+        PopupWindow menu = glassPopup(panel, Math.round(200 * density));
+        // Back closes the menu only; the Apps popup under it is the open one again.
+        menu.setOnDismissListener(() -> openPopup = apps.isShowing() ? apps : null);
+        if (dockRow) addSettingsMenuRow(rows, menu, R.string.tile_add_to_dock, () -> {
+            apps.dismiss();
+            startDockEditFor(key, false);
+        });
+        addSettingsMenuRow(rows, menu, R.string.tile_move, () -> {
+            apps.dismiss();
+            if (!beginReorder()) return;
+            int at = adapter.positionOf(key);   // beginReorder can rebuild the tiles
+            if (at < 0) return;
+            focusTile(at);
+            pickUp(at);
+            Toast.makeText(this, R.string.reorder_hint, Toast.LENGTH_LONG).show();
+        });
+        Intent info = adapter.isInputAt(position) ? null : SystemSettings.appInfo(this, pkg);
+        if (info != null) addSettingsMenuRow(rows, menu, R.string.library_app_info, () -> {
+            apps.dismiss();
+            open(info);
+        });
+        panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+        menu.setWidth(Math.max(Math.round(200 * density), panel.getMeasuredWidth()));
+        int[] at = new int[2];
+        cell.getLocationOnScreen(at);
+        int gap = Math.round(8 * density), height = panel.getMeasuredHeight();
+        int y = at[1] + cell.getHeight() + gap;
+        if (y + height > root.getHeight()) y = Math.max(0, at[1] - gap - height);
+        menu.showAtLocation(root, Gravity.NO_GRAVITY, at[0], y);
+        rows.getChildAt(0).requestFocus();
+    }
+
     private void showInputs() {
         // A configured source panel and no Live TV row to offer next to it: the panel is the whole menu.
         // The BYINTEK U4 needs this, as its TvInputManager lists three HDMI ports and an AV input it doesn't have.
