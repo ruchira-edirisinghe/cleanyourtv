@@ -989,7 +989,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (festive) applyFestiveSkin((TextView) btnInputs, (TextView) btnSettings);
         if (cfg.liquidGlass) setUpLiquidGlass(cfg);
         topBarGrid = cfg.topBarGrid && !cfg.topMenu;
-        if (topBarGrid) gridTopButtons(cfg.liquidGlass);
+        if (topBarGrid) gridTopButtons(cfg.liquidGlass, cfg.topBarGridColumns);
 
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
@@ -2598,7 +2598,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * leaves the header's row for the root, so it takes no height there and the dock stays where it was; the greeting
      * and the date get the row's whole width.
      */
-    private void gridTopButtons(boolean glass) {
+    private void gridTopButtons(boolean glass, int perRow) {
         LinearLayout bar = findViewById(R.id.topButtons);
         ViewGroup header = (ViewGroup) bar.getParent();
         View content = (View) header.getParent();
@@ -2623,7 +2623,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int inRow = 0;
         for (View button : buttons) {
             boolean shown = button.getVisibility() == View.VISIBLE;
-            if (row == null || (shown && inRow == 2)) {
+            if (row == null || (shown && inRow == perRow)) {
                 LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT);
                 rlp.topMargin = row == null ? 0 : gap;
@@ -4473,7 +4473,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
     }
 
-    /** top_bar_grid: a button's menu opens left of the grid, level with the button, and slides in from it. */
+    /**
+     * top_bar_grid: a button's menu opens left of a grid of several rows, level with the button, and slides in from it.
+     * Under a single row it hangs 10dp below, its right edge on the row's end, or left of that the button's own left.
+     */
     private void besideColumn(PopupWindow popup, View panel, View anchor) {
         View bar = findViewById(R.id.topButtons);
         int w = popup.getWidth();
@@ -4487,12 +4490,27 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         anchor.getLocationInWindow(at);
         bar.getLocationInWindow(col);
         int edge = Math.round(16 * density);
-        int x = Math.max(edge, col[0] - Math.round(12 * density) - w);
-        int y = Math.max(edge, Math.min(at[1] - Math.round(6 * density), root.getHeight() - edge - h));
+        ViewGroup rows = (ViewGroup) bar;
+        boolean oneRow = shownChild(rows, true) == shownChild(rows, false);
+        int x, y;
+        if (oneRow) {
+            x = Math.max(edge, Math.min(at[0], col[0] + bar.getWidth() - w));
+            y = Math.min(at[1] + anchor.getHeight() + Math.round(10 * density), root.getHeight() - edge - h);
+        } else {
+            x = Math.max(edge, col[0] - Math.round(12 * density) - w);
+            y = Math.max(edge, Math.min(at[1] - Math.round(6 * density), root.getHeight() - edge - h));
+        }
         panel.setAlpha(0f);
-        panel.setTranslationX(12 * density);
+        if (oneRow) {
+            panel.setPivotY(0f);
+            panel.setScaleY(0.92f);
+            panel.setTranslationY(-8 * density);
+        } else {
+            panel.setTranslationX(12 * density);
+        }
         popup.showAtLocation(root, Gravity.NO_GRAVITY, x, y);
-        panel.animate().alpha(1f).translationX(0f).setDuration(reducedMotion ? Motion.REDUCED_MS : 220)
+        panel.animate().alpha(1f).translationX(0f).translationY(0f).scaleY(1f)
+                .setDuration(reducedMotion ? Motion.REDUCED_MS : 220)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
     }
 

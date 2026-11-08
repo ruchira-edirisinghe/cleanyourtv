@@ -559,6 +559,10 @@
          from the dock to its last button; the buttons' menus open beside it, and it slides away when the apps scroll
          up under it. Not with top_menu. Can also be set with "top_bar_grid" in a theme's config.json. -->
     <bool name="top_bar_grid">true</bool>
+    <!-- top_bar_grid: how many square buttons stand in each row, 1 to 8. 2 makes the four buttons 2x2, 4 one line;
+         with one row their menus drop under them as in the usual bar. Can also be set with "top_bar_grid_columns" in a
+         theme's config.json. -->
+    <integer name="top_bar_grid_columns">2</integer>
     <string name="weather_location" translatable="false"></string>
     <bool name="weather_fahrenheit">false</bool>
     <!-- true: when the focus moves to an app of another colour, the ambient glow takes the new colour in one frame

@@ -299,6 +299,8 @@ final class Config {
     boolean appsPopup;
     /** The top bar's buttons as square icons in a 2x2 grid at the top right instead of a row (config.xml, top_bar_grid). */
     boolean topBarGrid;
+    /** Square buttons in each row of top_bar_grid (config.xml, top_bar_grid_columns): 2 makes 2x2, 4 one line. */
+    int topBarGridColumns = 2;
     String weatherLocation = "";
     boolean weatherFahrenheit;
 
@@ -572,6 +574,7 @@ final class Config {
         boolean saverWeather = res.getBoolean(R.bool.saver_weather);
         boolean appsPopup = res.getBoolean(R.bool.apps_popup);
         boolean topBarGrid = res.getBoolean(R.bool.top_bar_grid);
+        int topBarGridColumns = res.getInteger(R.integer.top_bar_grid_columns);
         String weatherLocation = res.getString(R.string.weather_location);
         boolean weatherFahrenheit = res.getBoolean(R.bool.weather_fahrenheit);
         boolean applied = false;
@@ -698,6 +701,7 @@ final class Config {
             saverWeather = bool(json, "saver_weather", saverWeather);
             appsPopup = bool(json, "apps_popup", appsPopup);
             topBarGrid = bool(json, "top_bar_grid", topBarGrid);
+            topBarGridColumns = integer(json, "top_bar_grid_columns", topBarGridColumns, 1, 8);
             weatherLocation = string(json, "weather_location", weatherLocation);
             weatherFahrenheit = bool(json, "weather_fahrenheit", weatherFahrenheit);
             glowStyle = string(json, "glow_style", glowStyle);
@@ -777,6 +781,7 @@ final class Config {
         built.saverWeather = saverWeather;
         built.appsPopup = appsPopup;
         built.topBarGrid = topBarGrid;
+        built.topBarGridColumns = Math.max(1, Math.min(8, topBarGridColumns));
         built.weatherLocation = weatherLocation.trim();
         built.weatherFahrenheit = weatherFahrenheit;
         return built;
