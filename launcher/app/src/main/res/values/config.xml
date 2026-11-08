@@ -562,7 +562,7 @@
     <!-- top_bar_grid: how many square buttons stand in each row, 1 to 8. 2 makes the four buttons 2x2, 4 one line;
          with one row their menus drop under them as in the usual bar. Can also be set with "top_bar_grid_columns" in a
          theme's config.json. -->
-    <integer name="top_bar_grid_columns">2</integer>
+    <integer name="top_bar_grid_columns">4</integer>
     <string name="weather_location" translatable="false"></string>
     <bool name="weather_fahrenheit">false</bool>
     <!-- true: when the focus moves to an app of another colour, the ambient glow takes the new colour in one frame
