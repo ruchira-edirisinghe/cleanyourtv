@@ -547,8 +547,9 @@
          empty, the place is the one the TV's internet address points to (ipwho.is). Needs the internet. Can also be set
          with "saver_weather", "weather_location" and "weather_fahrenheit" in a theme's config.json. -->
     <bool name="saver_weather">true</bool>
-    <!-- Home keeps only the dock (and Continue watching): the other apps open in a glass popup from an Apps pill in the
-         top bar, where OK opens one and holding OK moves it, puts it in the dock or shows its App info. While a tile
+    <!-- Home keeps only the dock (and Continue watching): every app, the dock's too, opens in a glass popup titled
+         All Apps from an Apps pill in the top bar, in the middle of the screen over a dimmed Home. OK opens one and
+         holding OK moves it, puts it in the dock or shows its App info. While a tile
          is being moved or a dock place filled, the rows show on Home again. Needs dock_row, not single_row. Can also
          be set with "apps_popup" in a theme's config.json. -->
     <bool name="apps_popup">true</bool>

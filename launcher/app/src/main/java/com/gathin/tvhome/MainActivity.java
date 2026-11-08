@@ -4037,34 +4037,58 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Dropdown menu under the Inputs pill: HDMI ports (with connection state), AV and Live TV. */
     /**
-     * apps_popup: the apps beyond the dock as icons in a glass panel hanging under the Apps pill. OK opens one,
-     * holding OK offers Add to dock, Move and App info; Back closes it.
+     * apps_popup: every app, the dock's first, as icons in a glass panel titled All Apps in the middle of the screen,
+     * with Home dimmed behind it. OK opens one, holding OK offers Add to dock, Move and App info; Back closes it.
      */
     private void showApps(View anchor) {
         if (openPopup != null || adapter == null) return;
-        int from = adapter.popupStart(), to = adapter.popupEnd();
-        if (from >= to) return;
-        int cols = Math.min(6, to - from);
-        int cellW = Math.round(112 * density), pad = Math.round(8 * density);
+        List<Integer> shown = new ArrayList<>();
+        for (int p = adapter.popupStart(); p < adapter.popupEnd(); p++) if (adapter.popupShows(p)) shown.add(p);
+        if (shown.isEmpty()) return;
+        int cols = Math.min(6, shown.size());
+        int cellW = Math.round(112 * density), pad = Math.round(12 * density);
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setBackgroundResource(R.drawable.glass_panel);
         panel.setPadding(pad, pad, pad, pad);
+        TextView title = new TextView(this);
+        title.setText(R.string.all_apps_title);
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22f);
+        title.setTypeface(UiFont.get(this, R.string.font_title));
+        title.setPadding(Math.round(10 * density), Math.round(4 * density), 0, Math.round(10 * density));
+        panel.addView(title);
         PopupWindow popup = glassPopup(panel, cols * cellW + 2 * pad);
         GridLayout cells = new GridLayout(this);
         cells.setColumnCount(cols);
-        for (int p = from; p < to; p++) cells.addView(appsCell(p, cellW, popup));
+        for (int p : shown) cells.addView(appsCell(p, cellW, popup));
         ScrollView scroll = new ScrollView(this);
         scroll.setVerticalScrollBarEnabled(false);
         scroll.addView(cells);
         cells.measure(View.MeasureSpec.makeMeasureSpec(cols * cellW, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.UNSPECIFIED);
-        // Many apps: the panel stops at about two thirds of the screen and scrolls.
-        int max = Math.round(getResources().getDisplayMetrics().heightPixels * 0.66f);
+        // Many apps: the panel stops short of the screen's edges and scrolls.
+        int max = Math.round(getResources().getDisplayMetrics().heightPixels * 0.8f) - Math.round(60 * density);
         panel.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 cells.getMeasuredHeight() > max ? max : ViewGroup.LayoutParams.WRAP_CONTENT));
-        dropIn(popup, panel, anchor, Gravity.END);
+        panel.setAlpha(0f);
+        panel.setScaleX(0.96f);
+        panel.setScaleY(0.96f);
+        popup.showAtLocation(root, Gravity.CENTER, 0, 0);
+        dimBehind(popup, 0.6f);
+        panel.animate().alpha(1f).scaleX(1f).scaleY(1f).setDuration(reducedMotion ? Motion.REDUCED_MS : 220)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
         cells.getChildAt(0).requestFocus();
+    }
+
+    /** Darkens everything behind a popup's window (FLAG_DIM_BEHIND), e.g. Home under All Apps. */
+    private void dimBehind(PopupWindow popup, float amount) {
+        View top = popup.getContentView().getRootView();
+        if (!(top.getLayoutParams() instanceof android.view.WindowManager.LayoutParams)) return;
+        android.view.WindowManager.LayoutParams lp = (android.view.WindowManager.LayoutParams) top.getLayoutParams();
+        lp.flags |= android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND;
+        lp.dimAmount = amount;
+        getWindowManager().updateViewLayout(top, lp);
     }
 
     /** One app in the Apps popup: its picture with rounded corners over its name, on white when focused. */
@@ -4127,7 +4151,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         PopupWindow menu = glassPopup(panel, Math.round(200 * density));
         // Back closes the menu only; the Apps popup under it is the open one again.
         menu.setOnDismissListener(() -> openPopup = apps.isShowing() ? apps : null);
-        if (dockRow) addSettingsMenuRow(rows, menu, R.string.tile_add_to_dock, () -> {
+        if (dockRow && !adapter.dockAt(position)) addSettingsMenuRow(rows, menu, R.string.tile_add_to_dock, () -> {
             apps.dismiss();
             startDockEditFor(key, false);
         });

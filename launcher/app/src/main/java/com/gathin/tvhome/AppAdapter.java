@@ -718,10 +718,18 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     boolean isLibraryAt(int position) { return showLibrary && position == appCount(); }
 
-    /** apps_popup: the positions of the apps in the popup, after the dock up to the "Default home" tile. */
-    int popupStart() { return Math.min(dockSize, items.size()); }
+    /** apps_popup: the popup lists every app, the dock's first; popupShows leaves out empty slots and cards. */
+    int popupStart() { return 0; }
 
     int popupEnd() { return items.size(); }
+
+    boolean popupShows(int position) {
+        int kind = items.get(position).kind;
+        return kind == Entry.APP || kind == Entry.INPUT;
+    }
+
+    /** True for an app in the dock row. */
+    boolean dockAt(int position) { return dockRow && position < Math.min(dockSize, items.size()); }
 
     /** The popup's picture of an app: the theme's square art, else its icon, else its banner. */
     Drawable popupIconAt(int position) {
