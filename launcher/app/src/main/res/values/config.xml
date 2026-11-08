@@ -558,7 +558,7 @@
          through while the TV is offline. The arrows walk the grid, Down from its bottom row goes to the dock and Up
          from the dock to its last button; the buttons' menus open beside it, and it slides away when the apps scroll
          up under it. Not with top_menu. Can also be set with "top_bar_grid" in a theme's config.json. -->
-    <bool name="top_bar_grid">false</bool>
+    <bool name="top_bar_grid">true</bool>
     <string name="weather_location" translatable="false"></string>
     <bool name="weather_fahrenheit">false</bool>
     <!-- true: when the focus moves to an app of another colour, the ambient glow takes the new colour in one frame
