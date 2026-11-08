@@ -282,6 +282,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean dockRow;
     /** config single_row: every app in the dock's row, scrolling sideways, no grid below. */
     private boolean singleRow;
+    /** top_bar_column: the top bar's buttons stacked at the top right. */
+    private boolean topBarColumn;
     /** The highlight springs past its target (config.xml, focus_overshoot); false goes straight there. */
     private boolean focusOvershoot;
     /** Festive skin from the theme (see Festival); applied while it is active today. */
@@ -938,15 +940,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         boolean rtlMenuBar = getResources().getBoolean(R.bool.rtl_menu_bar);
         View.OnKeyListener pillKeys = (v, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+            int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
+            // apps_popup: the Apps pill comes after Settings, so the bar ends there.
+            int lastButton = lastTopButton();
+            if (topBarColumn) {
+                // A column: Up and Down walk it, Down from its end goes back to the dock, Left and Right stay.
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return v.getId() == firstButton;
+                if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    if (v.getId() != lastButton) return false;
+                    focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
+                    return true;
+                }
+                return keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
+            }
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                 // Back to the dock tile Up came from, not wherever the focus finder lands.
                 focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                 return true;
             }
-            int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
-            // apps_popup: the Apps pill comes after Settings, so the bar ends there.
-            int lastButton = findViewById(R.id.btnApps).getVisibility() == View.VISIBLE ? R.id.btnApps : R.id.btnSettings;
             int leftButton = rtlMenuBar ? lastButton : firstButton;
             int rightButton = rtlMenuBar ? firstButton : lastButton;
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return v.getId() == leftButton;
@@ -972,6 +984,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (festive) applyFestiveSkin((TextView) btnInputs, (TextView) btnSettings);
         if (cfg.liquidGlass) setUpLiquidGlass(cfg);
+        topBarColumn = cfg.topBarColumn && !cfg.topMenu;
+        if (topBarColumn) stackTopButtons(cfg.liquidGlass);
 
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
@@ -2575,6 +2589,81 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         liftHeader(headerRow().getBottom() + 10 * density - (wrapper.getTop() + top));
     }
 
+    /**
+     * top_bar_column: the top bar's buttons one under another at the top right. The column leaves the header's row for
+     * the root, so it takes no height there and the dock stays where it was; the greeting and the date get the row's
+     * whole width.
+     */
+    private void stackTopButtons(boolean glass) {
+        LinearLayout bar = findViewById(R.id.topButtons);
+        ViewGroup row = (ViewGroup) bar.getParent();
+        View content = (View) row.getParent();
+        View left = findViewById(R.id.leftBlock);
+        RelativeLayout.LayoutParams llp = (RelativeLayout.LayoutParams) left.getLayoutParams();
+        llp.removeRule(RelativeLayout.START_OF);
+        llp.removeRule(RelativeLayout.LEFT_OF);
+        llp.setMarginEnd(0);
+        left.setLayoutParams(llp);
+        row.removeView(bar);
+        bar.setOrientation(LinearLayout.VERTICAL);
+        bar.setGravity(Gravity.NO_GRAVITY);
+        bar.setTranslationY(0f);
+        int pad = Math.round(6 * density), gap = Math.round(4 * density);
+        bar.setPadding(pad, pad, pad, pad);
+        // One radius for the column, the pills' 21dp plus the padding, so their corners run parallel.
+        if (glass) bar.setBackground(new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, 27 * density, density));
+        boolean firstShown = true;
+        for (int i = 0; i < bar.getChildCount(); i++) {
+            View button = bar.getChildAt(i);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    button.getLayoutParams().height);
+            if (button.getVisibility() == View.VISIBLE) {
+                lp.topMargin = firstShown ? 0 : gap;
+                firstShown = false;
+            }
+            button.setLayoutParams(lp);
+            button.setNextFocusDownId(View.NO_ID);
+            if (button instanceof TextView) ((TextView) button).setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        }
+        FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
+        flp.topMargin = content.getPaddingTop() + Math.round(15 * density);
+        flp.setMarginEnd(content.getPaddingEnd());
+        root.addView(bar, root.indexOfChild(content) + 1, flp);
+        root.getViewTreeObserver().addOnPreDrawListener(() -> {
+            liftColumn(bar);
+            return true;
+        });
+    }
+
+    /** Slides the column up and out, ahead of the dock, once the apps scroll up towards it; back when they return. */
+    private void liftColumn(View bar) {
+        RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
+        float room = Math.max(1, bar.getBottom());
+        float shift = room;
+        if (dock != null) {
+            int[] at = new int[2], base = new int[2];
+            dock.itemView.getLocationInWindow(at);
+            root.getLocationInWindow(base);
+            shift = Math.max(0f, 3f * (bar.getBottom() + 16 * density - (at[1] - base[1])));
+        }
+        float y = -Math.min(shift, room);
+        if (bar.getTranslationY() == y) return;
+        bar.setTranslationY(y);
+        bar.setAlpha(1f + y / room);
+    }
+
+    /** top_bar_column: Up from the dock goes to the column's last button. */
+    private boolean focusColumnEnd() {
+        View last = findViewById(lastTopButton());
+        return last != null && last.requestFocus();
+    }
+
+    /** The top bar's last button: Apps when apps_popup shows it, else Settings. */
+    private int lastTopButton() {
+        return findViewById(R.id.btnApps).getVisibility() == View.VISIBLE ? R.id.btnApps : R.id.btnSettings;
+    }
+
     /** The clock and the top bar: the row above the grid that holds them. */
     private View headerRow() {
         return (View) clockBlock.getParent();
@@ -2993,7 +3082,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
             target = GridRows.up(position, COLUMNS, GRID_COLUMNS);
-            if (target < 0) return continueRow != null && upPastContinueRow();   // dock row: on to the top bar
+            if (target < 0) {   // dock row: on to the top bar
+                if (topBarColumn) return focusColumnEnd();
+                return continueRow != null && upPastContinueRow();
+            }
         } else {
             target = GridRows.down(position, count, COLUMNS, GRID_COLUMNS);
             if (target < 0) {
@@ -4293,12 +4385,39 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Drop in: fade and unfold from the top edge, hanging under the anchor pill. */
     private void dropIn(PopupWindow popup, View panel, View anchor, int gravity) {
+        if (topBarColumn && anchor.getParent() == findViewById(R.id.topButtons)) {
+            besideColumn(popup, panel, anchor);
+            return;
+        }
         panel.setAlpha(0f);
         panel.setPivotY(0f);
         panel.setScaleY(0.92f);
         panel.setTranslationY(-8 * density);
         popup.showAsDropDown(anchor, 0, (int) (10 * density), gravity);
         panel.animate().alpha(1f).scaleY(1f).translationY(0f).setDuration(reducedMotion ? Motion.REDUCED_MS : 220)
+                .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
+    }
+
+    /** top_bar_column: a button's menu opens left of the column, level with the button, and slides in from it. */
+    private void besideColumn(PopupWindow popup, View panel, View anchor) {
+        View bar = (View) anchor.getParent();
+        int w = popup.getWidth();
+        if (w <= 0) {
+            panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
+            w = panel.getMeasuredWidth();
+        }
+        panel.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.UNSPECIFIED);
+        int h = popup.getHeight() > 0 ? popup.getHeight() : panel.getMeasuredHeight();
+        int[] at = new int[2], col = new int[2];
+        anchor.getLocationInWindow(at);
+        bar.getLocationInWindow(col);
+        int edge = Math.round(16 * density);
+        int x = Math.max(edge, col[0] - Math.round(12 * density) - w);
+        int y = Math.max(edge, Math.min(at[1] - Math.round(6 * density), root.getHeight() - edge - h));
+        panel.setAlpha(0f);
+        panel.setTranslationX(12 * density);
+        popup.showAtLocation(root, Gravity.NO_GRAVITY, x, y);
+        panel.animate().alpha(1f).translationX(0f).setDuration(reducedMotion ? Motion.REDUCED_MS : 220)
                 .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
     }
 

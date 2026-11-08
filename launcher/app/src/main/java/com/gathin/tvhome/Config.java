@@ -297,6 +297,8 @@ final class Config {
     boolean saverWeather;
     /** The apps beyond the dock in a popup from an Apps pill instead of rows on Home (config.xml, apps_popup). */
     boolean appsPopup;
+    /** The top bar's buttons one under another at the top right instead of in a row (config.xml, top_bar_column). */
+    boolean topBarColumn;
     String weatherLocation = "";
     boolean weatherFahrenheit;
 
@@ -569,6 +571,7 @@ final class Config {
         boolean liquidGlass = res.getBoolean(R.bool.liquid_glass);
         boolean saverWeather = res.getBoolean(R.bool.saver_weather);
         boolean appsPopup = res.getBoolean(R.bool.apps_popup);
+        boolean topBarColumn = res.getBoolean(R.bool.top_bar_column);
         String weatherLocation = res.getString(R.string.weather_location);
         boolean weatherFahrenheit = res.getBoolean(R.bool.weather_fahrenheit);
         boolean applied = false;
@@ -694,6 +697,7 @@ final class Config {
             liquidGlass = bool(json, "liquid_glass", liquidGlass);
             saverWeather = bool(json, "saver_weather", saverWeather);
             appsPopup = bool(json, "apps_popup", appsPopup);
+            topBarColumn = bool(json, "top_bar_column", topBarColumn);
             weatherLocation = string(json, "weather_location", weatherLocation);
             weatherFahrenheit = bool(json, "weather_fahrenheit", weatherFahrenheit);
             glowStyle = string(json, "glow_style", glowStyle);
@@ -772,6 +776,7 @@ final class Config {
         built.liquidGlass = liquidGlass;
         built.saverWeather = saverWeather;
         built.appsPopup = appsPopup;
+        built.topBarColumn = topBarColumn;
         built.weatherLocation = weatherLocation.trim();
         built.weatherFahrenheit = weatherFahrenheit;
         return built;
