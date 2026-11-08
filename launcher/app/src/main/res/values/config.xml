@@ -556,7 +556,7 @@
          clock, so the greeting and the date keep the whole width. Up and Down walk the column, Down from its last
          button goes to the dock, and the buttons' menus open beside the column. The column slides away when the
          apps scroll up under it. Not with top_menu. Can also be set with "top_bar_column" in a theme's config.json. -->
-    <bool name="top_bar_column">false</bool>
+    <bool name="top_bar_column">true</bool>
     <string name="weather_location" translatable="false"></string>
     <bool name="weather_fahrenheit">false</bool>
     <!-- true: when the focus moves to an app of another colour, the ambient glow takes the new colour in one frame
