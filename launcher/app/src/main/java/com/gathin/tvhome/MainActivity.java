@@ -282,8 +282,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean dockRow;
     /** config single_row: every app in the dock's row, scrolling sideways, no grid below. */
     private boolean singleRow;
-    /** top_bar_column: the top bar's buttons stacked at the top right. */
-    private boolean topBarColumn;
+    /** top_bar_grid: the top bar's buttons as square icons in a 2x2 grid at the top right. */
+    private boolean topBarGrid;
     /** The highlight springs past its target (config.xml, focus_overshoot); false goes straight there. */
     private boolean focusOvershoot;
     /** Festive skin from the theme (see Festival); applied while it is active today. */
@@ -943,15 +943,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
             // apps_popup: the Apps pill comes after Settings, so the bar ends there.
             int lastButton = lastTopButton();
-            if (topBarColumn) {
-                // A column: Up and Down walk it, Down from its end goes back to the dock, Left and Right stay.
-                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return v.getId() == firstButton;
+            if (topBarGrid) {
+                // The 2x2 grid: the arrows move within it and stop at its edges; Down from its bottom row goes back
+                // to the dock tile Up came from.
+                ViewGroup row = (ViewGroup) v.getParent();
+                ViewGroup cells = (ViewGroup) row.getParent();
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return shownChild(cells, false) == row;
                 if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                    if (v.getId() != lastButton) return false;
+                    if (shownChild(cells, true) != row) return false;
                     focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                     return true;
                 }
-                return keyCode == KeyEvent.KEYCODE_DPAD_LEFT || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT;
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return shownChild(row, false) == v;
+                return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && shownChild(row, true) == v;
             }
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
@@ -984,8 +988,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (festive) applyFestiveSkin((TextView) btnInputs, (TextView) btnSettings);
         if (cfg.liquidGlass) setUpLiquidGlass(cfg);
-        topBarColumn = cfg.topBarColumn && !cfg.topMenu;
-        if (topBarColumn) stackTopButtons(cfg.liquidGlass);
+        topBarGrid = cfg.topBarGrid && !cfg.topMenu;
+        if (topBarGrid) gridTopButtons(cfg.liquidGlass);
 
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
@@ -2590,40 +2594,51 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /**
-     * top_bar_column: the top bar's buttons one under another at the top right. The column leaves the header's row for
-     * the root, so it takes no height there and the dock stays where it was; the greeting and the date get the row's
-     * whole width.
+     * top_bar_grid: the top bar's buttons as square icons, each its own glass, two by two at the top right. The grid
+     * leaves the header's row for the root, so it takes no height there and the dock stays where it was; the greeting
+     * and the date get the row's whole width.
      */
-    private void stackTopButtons(boolean glass) {
+    private void gridTopButtons(boolean glass) {
         LinearLayout bar = findViewById(R.id.topButtons);
-        ViewGroup row = (ViewGroup) bar.getParent();
-        View content = (View) row.getParent();
+        ViewGroup header = (ViewGroup) bar.getParent();
+        View content = (View) header.getParent();
         View left = findViewById(R.id.leftBlock);
         RelativeLayout.LayoutParams llp = (RelativeLayout.LayoutParams) left.getLayoutParams();
         llp.removeRule(RelativeLayout.START_OF);
         llp.removeRule(RelativeLayout.LEFT_OF);
         llp.setMarginEnd(0);
         left.setLayoutParams(llp);
-        row.removeView(bar);
+        header.removeView(bar);
         bar.setOrientation(LinearLayout.VERTICAL);
         bar.setGravity(Gravity.NO_GRAVITY);
         bar.setTranslationY(0f);
-        int pad = Math.round(6 * density), gap = Math.round(4 * density);
-        bar.setPadding(pad, pad, pad, pad);
-        // One radius for the column, the pills' 21dp plus the padding, so their corners run parallel.
-        if (glass) bar.setBackground(new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, 27 * density, density));
-        boolean firstShown = true;
-        for (int i = 0; i < bar.getChildCount(); i++) {
-            View button = bar.getChildAt(i);
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                    button.getLayoutParams().height);
-            if (button.getVisibility() == View.VISIBLE) {
-                lp.topMargin = firstShown ? 0 : gap;
-                firstShown = false;
+        bar.setPadding(0, 0, 0, 0);
+        bar.setBackground(null);
+        wifiIconOnly = true;   // the network name goes to the content description, as with icon_only_buttons
+        int side = Math.round(52 * density), gap = Math.round(8 * density);
+        List<View> buttons = new ArrayList<>();
+        for (int i = 0; i < bar.getChildCount(); i++) buttons.add(bar.getChildAt(i));
+        bar.removeAllViews();
+        LinearLayout row = null;
+        int inRow = 0;
+        for (View button : buttons) {
+            boolean shown = button.getVisibility() == View.VISIBLE;
+            if (row == null || (shown && inRow == 2)) {
+                LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT);
+                rlp.topMargin = row == null ? 0 : gap;
+                row = new LinearLayout(this);
+                row.setOrientation(LinearLayout.HORIZONTAL);
+                row.setClipChildren(false);
+                row.setClipToPadding(false);
+                bar.addView(row, rlp);
+                inRow = 0;
             }
-            button.setLayoutParams(lp);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(side, side);
+            if (shown) lp.setMarginStart(inRow++ == 0 ? 0 : gap);
+            row.addView(button, lp);
             button.setNextFocusDownId(View.NO_ID);
-            if (button instanceof TextView) ((TextView) button).setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            if (button instanceof TextView) squareButton((TextView) button, side, glass);
         }
         FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.END);
@@ -2636,7 +2651,42 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
     }
 
-    /** Slides the column up and out, ahead of the dock, once the apps scroll up towards it; back when they return. */
+    /** A square top button: the icon alone in the middle (the label becomes its content description), in its own glass. */
+    private void squareButton(TextView button, int side, boolean glass) {
+        if (!TextUtils.isEmpty(button.getText())) button.setContentDescription(button.getText());
+        button.setText(null);
+        button.setMaxWidth(Integer.MAX_VALUE);
+        button.setCompoundDrawablePadding(0);
+        button.setGravity(Gravity.CENTER);
+        int pad = Math.max(0, (side - Math.round(22 * density)) / 2);
+        button.setPaddingRelative(pad, 0, pad, 0);
+        if (!glass) return;
+        float r = 16 * density;
+        StateListDrawable lens = new StateListDrawable();
+        lens.addState(new int[]{android.R.attr.state_focused}, new GlassDrawable(glassBackdrop, GlassDrawable.MILK, r, density));
+        lens.addState(new int[]{android.R.attr.state_activated},
+                new GlassDrawable(glassBackdrop, GlassDrawable.ACTIVE, r, density));
+        lens.addState(new int[0], new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, r, density));
+        button.setBackground(lens);
+    }
+
+    /** top_bar_grid: the first or last child of a row (or row of the grid) that shows something. */
+    private static View shownChild(ViewGroup group, boolean last) {
+        int n = group.getChildCount();
+        for (int k = 0; k < n; k++) {
+            View child = group.getChildAt(last ? n - 1 - k : k);
+            if (child.getVisibility() != View.VISIBLE) continue;
+            if (!(child instanceof ViewGroup) || shownChild((ViewGroup) child, false) != null) return child;
+        }
+        return null;
+    }
+
+    /** top_bar_grid: true when the view is one of the grid's buttons. */
+    private boolean inTopGrid(View view) {
+        return view.getParent() instanceof View && ((View) view.getParent()).getParent() == findViewById(R.id.topButtons);
+    }
+
+    /** Slides the grid up and out, ahead of the dock, once the apps scroll up towards it; back when they return. */
     private void liftColumn(View bar) {
         RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
         float room = Math.max(1, bar.getBottom());
@@ -2653,7 +2703,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         bar.setAlpha(1f + y / room);
     }
 
-    /** top_bar_column: Up from the dock goes to the column's last button. */
+    /** top_bar_grid: Up from the dock goes to the grid's last button. */
     private boolean focusColumnEnd() {
         View last = findViewById(lastTopButton());
         return last != null && last.requestFocus();
@@ -3083,7 +3133,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
             target = GridRows.up(position, COLUMNS, GRID_COLUMNS);
             if (target < 0) {   // dock row: on to the top bar
-                if (topBarColumn) return focusColumnEnd();
+                if (topBarGrid) return focusColumnEnd();
                 return continueRow != null && upPastContinueRow();
             }
         } else {
@@ -3597,6 +3647,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (!online) {
                 text = getString(R.string.offline);
                 vpn = false;
+                if (topBarGrid) icon = R.drawable.ic_wifi_off;   // no label in the grid: the icon says it
             } else if (ethernet) {
                 text = getString(R.string.ethernet);
                 icon = R.drawable.ic_ethernet;
@@ -4409,7 +4460,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** Drop in: fade and unfold from the top edge, hanging under the anchor pill. */
     private void dropIn(PopupWindow popup, View panel, View anchor, int gravity) {
-        if (topBarColumn && anchor.getParent() == findViewById(R.id.topButtons)) {
+        if (topBarGrid && inTopGrid(anchor)) {
             besideColumn(popup, panel, anchor);
             return;
         }
@@ -4422,9 +4473,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 .setInterpolator(new android.view.animation.DecelerateInterpolator(1.6f)).start();
     }
 
-    /** top_bar_column: a button's menu opens left of the column, level with the button, and slides in from it. */
+    /** top_bar_grid: a button's menu opens left of the grid, level with the button, and slides in from it. */
     private void besideColumn(PopupWindow popup, View panel, View anchor) {
-        View bar = (View) anchor.getParent();
+        View bar = findViewById(R.id.topButtons);
         int w = popup.getWidth();
         if (w <= 0) {
             panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
