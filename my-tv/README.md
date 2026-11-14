@@ -54,7 +54,7 @@ name or `latitude,longitude`, or leave it empty to use the place the TV's intern
 The scenes are not in this repo. They are free 3840x2160 videos from
 [Pixabay](https://pixabay.com/service/license-summary/), which may be used but not passed on as files.
 [`saver/get-scenes.sh`](saver/get-scenes.sh) downloads them from there, keeps them at 4K without sound, smooths the
-loops that would jump and writes them to the TV:
+loops that would jump, plays the 25 fps ones at 30 fps (25 judders on the 60 Hz panel) and writes them to the TV:
 
 ```bash
 TV_HOST=<tv ip>:<port> bash my-tv/saver/get-scenes.sh
