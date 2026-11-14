@@ -2792,7 +2792,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             bottom = at[1] - base[1] - dock.itemView.getTranslationY() + tile.getTop() - 14 * density;
         }
         float gap = 22 * density;
-        nowPlayingCard.fitHeight(Math.round(bottom - top - 2 * gap));
+        // As wide as the top buttons above it, from the first one's left edge to the last one's right.
+        int width = bar.getVisibility() == View.VISIBLE ? bar.getWidth() : 0;
+        nowPlayingCard.fitHeight(Math.round(bottom - top - 2 * gap), width);
         float y = top + gap;
         float x = right - nowPlayingCard.targetWidth();
         if (nowPlayingCard.getTranslationY() != y) nowPlayingCard.setTranslationY(y);

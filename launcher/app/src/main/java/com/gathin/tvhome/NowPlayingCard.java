@@ -26,7 +26,8 @@ import java.util.Locale;
 /**
  * now_playing: a glass card with the song that plays (NowPlaying): its cover, a kicker with small dancing bars, the
  * title, the artist, and a thin bar with the time in and the length. Home has it upright, the cover on top, on the right
- * between the top buttons and the dock, its cover shrinking to fit there (fitHeight); the screensaver has it lying
+ * between the top buttons and the dock and as wide as the buttons, its cover a band as tall as fits there (fitHeight),
+ * the song's whole name under it; the screensaver has it lying
  * down, the cover at the left, in its bottom right corner. It only fades in and out, never moves. While shown, the
  * bars and the time tick.
  */
@@ -95,9 +96,13 @@ final class NowPlayingCard extends FrameLayout {
         top.addView(kicker, kl);
 
         title = text(context, upright ? 17 : 19, Color.WHITE, R.string.font_title);
-        title.setSingleLine(true);
+        // The song's whole name, over as many lines as it takes (three on Home, two lying down); only a longer one ends
+        // in an ellipsis.
+        title.setSingleLine(false);
+        title.setMaxLines(upright ? 3 : 2);
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setIncludeFontPadding(false);
+        title.setLineSpacing(dp(2), 1f);
 
         artist = text(context, upright ? 12 : 13, 0xB3FFFFFF, R.string.font_label);
         artist.setSingleLine(true);
@@ -155,7 +160,9 @@ final class NowPlayingCard extends FrameLayout {
             row.addView(art, new LinearLayout.LayoutParams(dp(WIDE_ART), dp(WIDE_ART)));
             LinearLayout column = new LinearLayout(context);
             column.setOrientation(LinearLayout.VERTICAL);
-            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, dp(WIDE_ART), 1f);
+            // As tall as the cover, or taller for a name on two lines (the card grows with it).
+            column.setMinimumHeight(dp(WIDE_ART));
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
             cl.leftMargin = dp(16);
             row.addView(column, cl);
             column.addView(top, new LinearLayout.LayoutParams(-1, -2));
@@ -163,40 +170,47 @@ final class NowPlayingCard extends FrameLayout {
             column.addView(title, tl);
             column.addView(artist, al);
             column.addView(new View(context), new LinearLayout.LayoutParams(1, 0, 1f));
-            column.addView(bar, new LinearLayout.LayoutParams(-1, -2));
-            addView(row, new FrameLayout.LayoutParams(-1, -1));
+            LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-1, -2);
+            bl.topMargin = dp(6);
+            column.addView(bar, bl);
+            addView(row, new FrameLayout.LayoutParams(-1, -2));
         }
     }
 
     /** The card's layout params for its shape; the caller sets the gravity or the position. */
     FrameLayout.LayoutParams params(int gravity) {
         return upright ? new FrameLayout.LayoutParams(dp(W), ViewGroup.LayoutParams.WRAP_CONTENT, gravity)
-                : new FrameLayout.LayoutParams(dp(WIDE_W), dp(WIDE_H), gravity);
+                : new FrameLayout.LayoutParams(dp(WIDE_W), ViewGroup.LayoutParams.WRAP_CONTENT, gravity);
     }
 
     /**
-     * Home: the cover shrinks (or grows back to its full size) so the card is this tall; the card is as wide as the cover
-     * and its margins. Changes nothing when it already fits.
+     * Home: the card is this wide (0 keeps its own width) and this tall. The cover spans the card's width and takes the
+     * height the song's lines leave, square at most, cropped to a wide band when there is less. Changes nothing when it
+     * already fits.
      */
-    void fitHeight(int heightPx) {
+    void fitHeight(int heightPx, int widthPx) {
         if (!upright) return;
+        int width = widthPx > 0 ? widthPx : dp(W);
+        int artW = width - 2 * dp(PAD);
         int rest = chrome > 0 ? chrome : dp(H - ART);
-        int side = Math.max(dp(96), Math.min(dp(ART), heightPx - rest));
+        int artH = Math.max(dp(72), Math.min(artW, heightPx - rest));
         ViewGroup.LayoutParams alp = art.getLayoutParams();
-        if (Math.abs(alp.width - side) <= 1) return;
-        alp.width = side;
-        alp.height = side;
-        art.setLayoutParams(alp);
+        if (alp.width != artW || Math.abs(alp.height - artH) > 1) {
+            alp.width = artW;
+            alp.height = artH;
+            art.setLayoutParams(alp);
+        }
         ViewGroup.LayoutParams lp = getLayoutParams();
-        if (lp != null) {
-            lp.width = targetWidth();
+        if (lp != null && lp.width != width) {
+            lp.width = width;
             setLayoutParams(lp);
         }
     }
 
-    /** The card's width for its cover now, in px. */
+    /** The card's width now, in px. */
     int targetWidth() {
-        return art.getLayoutParams().width + 2 * dp(PAD);
+        ViewGroup.LayoutParams lp = getLayoutParams();
+        return lp != null && lp.width > 0 ? lp.width : dp(W);
     }
 
     @Override
