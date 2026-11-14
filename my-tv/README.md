@@ -65,8 +65,8 @@ Any other `.mp4`, `.webm` or `.mkv` put in the theme folder's `saver/` joins the
 
 ## Now playing
 
-While Spotify plays (`now_playing`, the apps in `now_playing_apps`), a glass card with the cover, the song, the
-artist and how far in stands on Home in the hero area on the left, between the clock and the focused app's name. It
+While Spotify plays (`now_playing`, the apps in `now_playing_apps`), an upright glass card, the cover on top and the
+song, the artist and how far in under it, stands on Home on the right, between the four top buttons and the dock. It
 fades out as soon as the apps scroll and comes back at the top. On the live screensaver the same card stays still in
 the bottom right corner.
 
