@@ -10,7 +10,6 @@ import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.media.MediaPlayer;
 import android.os.Handler;
 import android.os.Looper;
 import android.service.dreams.DreamService;
@@ -75,7 +74,7 @@ public class LiveSaverDream extends DreamService {
     // the scenes
     private FrameLayout root;
     private SurfaceView screen;
-    private MediaPlayer player;
+    private ScenePlayer player;
     private View dip;
     private View plainBackground;
     private List<File> videos = Collections.emptyList();
@@ -125,8 +124,7 @@ public class LiveSaverDream extends DreamService {
         screen.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
-                if (player != null) player.setDisplay(holder);
-                else if (running) nextClip();
+                if (running && player == null) nextClip();
             }
 
             @Override
@@ -601,40 +599,35 @@ public class LiveSaverDream extends DreamService {
         dip.animate().alpha(1f).setDuration(player == null ? 0 : DIP_OUT_MS).withEndAction(() -> play(file)).start();
     }
 
+    /** The scene to the player: one player for the whole screensaver, so the music that plays is never cut. */
     private void play(File file) {
         if (!running) return;
-        releasePlayer();
-        MediaPlayer mp = new MediaPlayer();
-        player = mp;
-        try {
-            mp.setDataSource(file.getPath());
-            mp.setDisplay(screen.getHolder());
-            mp.setLooping(true);
-            mp.setVolume(0f, 0f);
-            mp.setOnVideoSizeChangedListener((p, w, h) -> fit(w, h));
-            mp.setOnInfoListener((p, what, extra) -> {
-                if (what == MediaPlayer.MEDIA_INFO_VIDEO_RENDERING_START && p == player) {
+        if (player == null) {
+            player = new ScenePlayer(screen.getHolder().getSurface(), new ScenePlayer.Listener() {
+                @Override
+                public void onSize(int width, int height) {
+                    if (running) fit(width, height);
+                }
+
+                @Override
+                public void onShown(File shown) {
+                    if (!running || player == null) return;
                     switching = false;
                     plainBackground.setVisibility(View.GONE);
                     dip.animate().alpha(0f).setDuration(DIP_IN_MS).start();
+                    main.removeCallbacks(nextClipTimer);
                     if (videos.size() > 1) main.postDelayed(nextClipTimer, CLIP_MS);
                 }
-                return false;
-            });
-            mp.setOnErrorListener((p, what, extra) -> {
-                if (p == player) {
+
+                @Override
+                public void onError(File broken) {
+                    if (!running) return;
                     switching = false;
-                    main.post(this::nextClip);
+                    main.postDelayed(LiveSaverDream.this::nextClip, 500);
                 }
-                return true;
             });
-            mp.setOnPreparedListener(MediaPlayer::start);
-            mp.prepareAsync();
-        } catch (Exception e) {
-            releasePlayer();
-            switching = false;
-            main.postDelayed(this::nextClip, 500);
         }
+        player.play(file);
     }
 
     /**
@@ -657,14 +650,10 @@ public class LiveSaverDream extends DreamService {
 
     private void releasePlayer() {
         if (player == null) return;
-        MediaPlayer mp = player;
+        ScenePlayer p = player;
         player = null;
-        try {
-            mp.stop();
-        } catch (IllegalStateException ignored) {
-            // not started yet
-        }
-        mp.release();
+        switching = false;
+        p.release();
     }
 
     /**
