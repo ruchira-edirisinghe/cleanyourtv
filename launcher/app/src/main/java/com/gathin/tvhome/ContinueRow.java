@@ -43,8 +43,8 @@ import java.util.function.Consumer;
  * (Home scrolls down to them), laid over the room DockDecoration leaves below the dock's band, so the grid's positions and its navigation stay as they are. Each card
  * is a wide banner: the title's backdrop with its logo over it (a video's own picture for YouTube and the like), the
  * app's icon and how far in it is, with its name and the time left under it; Stremio's new episodes say so. Beside
- * the row's name, chips pick what it shows: All, Stremio, YouTube or Other; a chip filters the row as soon as it is
- * focused, and one with nothing to show says so.
+ * the row's name, at the right end of its line, chips pick what it shows: All, Stremio, YouTube or Other; a chip
+ * filters the row as soon as it is focused, and one with nothing to show says so.
  * OK opens it, holding OK offers to remove it. Pictures load off the main thread and are kept on disk.
  */
 final class ContinueRow {
@@ -134,13 +134,15 @@ final class ContinueRow {
         headerRow.setClipToPadding(false);
         headerRow.setMinimumHeight(dp(30));
         headerRow.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        // The chips stand at the line's right end, level with the dock's last tile.
+        headerRow.addView(new View(activity), new LinearLayout.LayoutParams(0, 1, 1f));
         for (int i = 0; i < chips.length; i++) {
             chips[i] = makeChip(i);
             LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(28));
             clp.leftMargin = dp(i == 0 ? 24 : 8);
             headerRow.addView(chips[i], clp);
         }
-        view.addView(headerRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        view.addView(headerRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         strip = new LinearLayout(activity);
         strip.setOrientation(LinearLayout.VERTICAL);
@@ -174,10 +176,10 @@ final class ContinueRow {
         return shown;
     }
 
-    /** Lines the row up with the dock's first tile (px from the row's parent's left edge). */
+    /** Lines the row up with the dock's first tile (px from the row's parent's left edge), and the chips with its last. */
     void setStartInset(int px) {
         if (headerRow.getPaddingLeft() == px) return;
-        headerRow.setPadding(px, 0, 0, 0);
+        headerRow.setPadding(px, 0, px, 0);   // the dock stands in the middle: as far in from the right
         strip.setPadding(px, strip.getPaddingTop(), strip.getPaddingRight(), strip.getPaddingBottom());
     }
 
