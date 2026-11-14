@@ -552,7 +552,7 @@
          scroll; on the live screensaver (LiveSaverDream) it stays in the bottom right corner. Reads the apps' media
          sessions with the Continue watching listener: cmd notification allow_listener com.gathin.tvhome/.WatchListener.
          Can also be set with "now_playing" and "now_playing_apps" in a theme's config.json. -->
-    <bool name="now_playing">false</bool>
+    <bool name="now_playing">true</bool>
     <string-array name="now_playing_apps" translatable="false">
         <item>com.spotify.tv.android</item>
         <item>com.spotify.music</item>
