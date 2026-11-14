@@ -8,7 +8,8 @@ banners with filters, a hero banner for every app and a live 4K screensaver that
 build it and change it to their liking; everything below says which switch or file does what.
 
 A lighter version that needs no fork, only the main launcher's own settings, is offered to the main repo as the
-`midnight-glass` theme.
+`midnight-glass` theme ([#3902](https://github.com/Gathin23/cleanyourtv/pull/3902)), and this fork is offered for its
+showcase ([#3903](https://github.com/Gathin23/cleanyourtv/pull/3903)).
 
 ## My TV's art
 
@@ -126,7 +127,9 @@ While a song plays:
   the screensaver. If the launcher died while holding it, Home puts it back when it starts.
 
 It reads the songs with the same listener as Continue watching (`allow_listener ... WatchListener`, above) and changes
-the timeout with `WRITE_SECURE_SETTINGS`, both already granted on this TV.
+the timeout with `WRITE_SECURE_SETTINGS`, both already granted on this TV. Right after the launcher is installed or
+updated, Android can take a moment to allow the listener again; Home keeps trying every ten seconds, so the card
+comes up by itself without leaving Home.
 
 ## Liquid glass
 
