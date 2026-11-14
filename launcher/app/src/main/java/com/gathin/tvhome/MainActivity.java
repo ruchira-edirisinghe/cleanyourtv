@@ -292,6 +292,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** liquid_glass: the copy of the backdrop the glass shows, and the layers it is made from. */
     private GlassBackdrop glassBackdrop;
     private View[] glassLayers;
+    /** now_playing: what the music apps play, and its card in the hero area. */
+    private NowPlaying nowPlaying;
+    private NowPlayingCard nowPlayingCard;
+    /** The tallest the hero has been (with its "Last opened" line), so the card above it never moves between apps. */
+    private int heroTallest;
     private int glassSignature;
     private long glassCaptured;
     private final Runnable glassCapture = this::captureGlass;
@@ -990,6 +995,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (cfg.liquidGlass) setUpLiquidGlass(cfg);
         topBarGrid = cfg.topBarGrid && !cfg.topMenu;
         if (topBarGrid) gridTopButtons(cfg.liquidGlass, cfg.topBarGridColumns);
+        if (cfg.nowPlaying) setUpNowPlaying(cfg);
 
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
@@ -1143,6 +1149,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         updateClockVisibility();
         clockRefresh.start();   // with timeReceiver: while Home is visible, paused or not
         tileRefresh.onStart();
+        if (nowPlaying != null) nowPlaying.start();
     }
 
     @Override
@@ -1399,6 +1406,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         unregisterReceiver(timeReceiver);
         clockRefresh.stop();
         handler.removeCallbacks(clockCheck);
+        if (nowPlaying != null) nowPlaying.stop();
         stopped = true;
         tileRefresh.onStop();
     }
@@ -2712,6 +2720,60 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** The top bar's last button: Apps when apps_popup shows it, else Settings. */
     private int lastTopButton() {
         return findViewById(R.id.btnApps).getVisibility() == View.VISIBLE ? R.id.btnApps : R.id.btnSettings;
+    }
+
+    // ---- now playing -------------------------------------------------------------------------------
+
+    /**
+     * now_playing: the song a music app plays, as a glass card in the hero area on the left, between the clock and the
+     * focused app's name. It only fades: out as soon as the apps scroll away from the top, back when they return.
+     */
+    private void setUpNowPlaying(Config cfg) {
+        nowPlayingCard = new NowPlayingCard(this, glassBackdrop);
+        View content = (View) headerRow().getParent();
+        root.addView(nowPlayingCard, root.indexOfChild(content) + 1,
+                NowPlayingCard.params(this, Gravity.TOP | Gravity.START));
+        nowPlaying = new NowPlaying(this, cfg.nowPlayingApps, this::showNowPlaying);
+        grid.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
+                nowPlayingCard.setAllowed(atTop(rv));
+            }
+        });
+        root.getViewTreeObserver().addOnPreDrawListener(() -> {
+            placeNowPlaying();
+            return true;
+        });
+    }
+
+    /** The apps are at the top: no row has scrolled up yet. */
+    private boolean atTop(RecyclerView rv) {
+        return !rv.canScrollVertically(-1) || rv.computeVerticalScrollOffset() < 6 * density;
+    }
+
+    private void showNowPlaying(NowPlaying.Track track) {
+        nowPlayingCard.setAllowed(atTop(grid));
+        nowPlayingCard.setTrack(track);
+    }
+
+    /**
+     * Keeps the card in the middle of the room between the header and the hero's app name, lined up with the name.
+     * The header's resting place is used, so the card stays put while the header slides.
+     */
+    private void placeNowPlaying() {
+        heroTallest = Math.max(heroTallest, hero.getHeight());
+        if (nowPlayingCard.getVisibility() != View.VISIBLE) return;
+        View header = headerRow();
+        View content = (View) header.getParent();
+        float top = content.getTop() + header.getTop() + header.getHeight() + 8 * density;
+        float h = nowPlayingCard.getHeight() > 0 ? nowPlayingCard.getHeight() : NowPlayingCard.H * density;
+        // The hero's bottom stays just above the dock; its top moves with what it shows.
+        float heroTop = hero.getY() + hero.getHeight() - heroTallest;
+        float bottom = heroTallest > 0 && heroTop > top + h ? heroTop - 4 * density : top + h + 48 * density;
+        float y = Math.max(top, (top + bottom - h) / 2f);
+        float x = hero.getLeft() + heroName.getLeft() + 2 * density;
+        if (nowPlayingCard.getTranslationY() != y) nowPlayingCard.setTranslationY(y);
+        if (nowPlayingCard.getTranslationX() != x) nowPlayingCard.setTranslationX(x);
     }
 
     /** The clock and the top bar: the row above the grid that holds them. */

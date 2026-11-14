@@ -295,6 +295,10 @@ final class Config {
     boolean liquidGlass;
     /** The weather beside the live screensaver's clock (config.xml, saver_weather), for weather_location. */
     boolean saverWeather;
+    /** A glass card with the song a music app plays, on Home's hero area and the screensaver (config.xml, now_playing). */
+    boolean nowPlaying;
+    /** The music apps that card follows (config.xml, now_playing_apps). */
+    List<String> nowPlayingApps = Collections.emptyList();
     /** The apps beyond the dock in a popup from an Apps pill instead of rows on Home (config.xml, apps_popup). */
     boolean appsPopup;
     /** The top bar's buttons as square icons in a 2x2 grid at the top right instead of a row (config.xml, top_bar_grid). */
@@ -572,6 +576,8 @@ final class Config {
         List<String> continueSkip = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.continue_skip)));
         boolean liquidGlass = res.getBoolean(R.bool.liquid_glass);
         boolean saverWeather = res.getBoolean(R.bool.saver_weather);
+        boolean nowPlaying = res.getBoolean(R.bool.now_playing);
+        List<String> nowPlayingApps = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.now_playing_apps)));
         boolean appsPopup = res.getBoolean(R.bool.apps_popup);
         boolean topBarGrid = res.getBoolean(R.bool.top_bar_grid);
         int topBarGridColumns = res.getInteger(R.integer.top_bar_grid_columns);
@@ -699,6 +705,8 @@ final class Config {
             continueSkip = stringList(json, "continue_skip", continueSkip);
             liquidGlass = bool(json, "liquid_glass", liquidGlass);
             saverWeather = bool(json, "saver_weather", saverWeather);
+            nowPlaying = bool(json, "now_playing", nowPlaying);
+            nowPlayingApps = stringList(json, "now_playing_apps", nowPlayingApps);
             appsPopup = bool(json, "apps_popup", appsPopup);
             topBarGrid = bool(json, "top_bar_grid", topBarGrid);
             topBarGridColumns = integer(json, "top_bar_grid_columns", topBarGridColumns, 1, 8);
@@ -779,6 +787,8 @@ final class Config {
         built.continueSkip = Collections.unmodifiableList(continueSkip);
         built.liquidGlass = liquidGlass;
         built.saverWeather = saverWeather;
+        built.nowPlaying = nowPlaying;
+        built.nowPlayingApps = Collections.unmodifiableList(nowPlayingApps);
         built.appsPopup = appsPopup;
         built.topBarGrid = topBarGrid;
         built.topBarGridColumns = Math.max(1, Math.min(8, topBarGridColumns));

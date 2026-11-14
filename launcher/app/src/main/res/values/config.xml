@@ -547,6 +547,16 @@
          empty, the place is the one the TV's internet address points to (ipwho.is). Needs the internet. Can also be set
          with "saver_weather", "weather_location" and "weather_fahrenheit" in a theme's config.json. -->
     <bool name="saver_weather">true</bool>
+    <!-- A glass card with the song a music app plays (now_playing_apps): its cover, the title, the artist and how far in.
+         On Home it stands in the hero area on the left, above the focused app's name, and fades out once the apps
+         scroll; on the live screensaver (LiveSaverDream) it stays in the bottom right corner. Reads the apps' media
+         sessions with the Continue watching listener: cmd notification allow_listener com.gathin.tvhome/.WatchListener.
+         Can also be set with "now_playing" and "now_playing_apps" in a theme's config.json. -->
+    <bool name="now_playing">false</bool>
+    <string-array name="now_playing_apps" translatable="false">
+        <item>com.spotify.tv.android</item>
+        <item>com.spotify.music</item>
+    </string-array>
     <!-- Home keeps only the dock (and Continue watching): every app, the dock's too, opens in a glass popup titled
          All Apps from an Apps pill in the top bar, in the middle of the screen over a dimmed Home. OK opens one and
          holding OK moves it, puts it in the dock or shows its App info. While a tile
