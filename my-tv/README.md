@@ -41,8 +41,8 @@ Hold OK on a card to remove it, or to disconnect Stremio.
 
 ## Live screensaver
 
-`LiveSaverDream` plays looping animated 4K scenes (synthwave suns, neon cities, pixel-art rooms, firefly forests,
-lantern skies) and dips through black to the next every 75 seconds. Each is shown whole, edge to edge on a 16:9
+`LiveSaverDream` plays looping animated 4K scenes (a neon road, cosy pixel-art and candlelit rooms, firefly caves,
+lantern skies, anime streets) and dips through black to the next every 75 seconds. Each is shown whole, edge to edge on a 16:9
 screen, never cropped. At the top centre, like a tablet's lock screen, stand the time with the weather beside it, the
 date, then the greeting with your name, as raised type with a soft shadow and no panel behind it. Every half minute or so a glass card with the poster comes up in
 a bottom corner for something left part-watched, or a new Stremio episode. Press OK while a card is up to jump back

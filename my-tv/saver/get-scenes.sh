@@ -17,14 +17,10 @@ mkdir -p "$OUT/src"
 
 # name | video link (all Pixabay, 3840x2160) | seconds to blend for a clip whose end does not meet its start, or empty
 SCENES='
-synthwave-sun|https://cdn.pixabay.com/video/2019/11/19/29225-374487091_large.mp4|2
-grid-planet|https://cdn.pixabay.com/video/2021/07/23/82515-580137713_large.mp4|
 pixel-tv-room|https://cdn.pixabay.com/video/2024/12/21/248092_large.mp4|
-neon-city|https://cdn.pixabay.com/video/2025/03/18/265596_large.mp4|1.5
 tokyo-street|https://cdn.pixabay.com/video/2025/08/31/300904_large.mp4|1.5
 sky-lanterns|https://cdn.pixabay.com/video/2025/03/26/267593_large.mp4|1.5
 camping-night|https://cdn.pixabay.com/video/2025/03/26/267613_large.mp4|1.5
-mushroom-forest|https://cdn.pixabay.com/video/2023/03/19/155242-809619008_large.mp4|2
 fairy-house|https://cdn.pixabay.com/video/2023/07/31/174062-850287032_large.mp4|
 firefly-cave|https://cdn.pixabay.com/video/2023/09/21/181583-866999908_large.mp4|2
 city-sunset|https://cdn.pixabay.com/video/2025/03/23/266892_large.mp4|1.5
