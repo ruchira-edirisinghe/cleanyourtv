@@ -2754,6 +2754,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void showNowPlaying(NowPlaying.Track track) {
         nowPlayingCard.setAllowed(atTop(grid));
         nowPlayingCard.setTrack(track);
+        // Music is no show: Continue watching steps aside while it plays. Focus on the row goes back to the dock.
+        if (continueRow != null) {
+            boolean away = track != null;
+            if (away && continueRow.hasFocus()) {
+                focusTile(lastFocused >= 0 && lastFocused < adapter.appCount() ? lastFocused : 0);
+            }
+            continueRow.setAway(away);
+        }
     }
 
     /**

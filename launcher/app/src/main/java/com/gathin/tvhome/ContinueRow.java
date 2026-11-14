@@ -90,6 +90,8 @@ final class ContinueRow {
     private final List<View> cards = new ArrayList<>();
     private String signature = "";
     private boolean shown;
+    /** now_playing: a song plays, so the row stands aside. */
+    private boolean away;
     private boolean syncing;
     private AlertDialog linkDialog;
 
@@ -161,6 +163,22 @@ final class ContinueRow {
         return view.hasFocus();
     }
 
+    /** now_playing: while a song plays the row is gone, and keeps no room under the dock; it returns when it stops. */
+    void setAway(boolean away) {
+        if (this.away == away) return;
+        this.away = away;
+        applyShown();
+    }
+
+    private void applyShown() {
+        boolean nowShown = !cards.isEmpty() && !away;
+        view.setVisibility(nowShown ? View.VISIBLE : View.GONE);
+        if (nowShown != shown) {
+            shown = nowShown;
+            host.onContinueShownChanged(shown);
+        }
+    }
+
     // ---- data ---------------------------------------------------------------------------------------------------
 
     /** Reads both lists again and rebuilds the cards if anything changed; asks Stremio again when it is time. */
@@ -205,13 +223,8 @@ final class ContinueRow {
         strip.removeAllViews();
         for (int i = 0; i < items.size(); i++) addCard(items.get(i), i);
         if (connect) addCard(null, items.size());
-        boolean nowShown = !cards.isEmpty();
-        view.setVisibility(nowShown ? View.VISIBLE : View.GONE);
-        if (nowShown != shown) {
-            shown = nowShown;
-            host.onContinueShownChanged(shown);
-        }
-        if (focusedIndex >= 0 && !cards.isEmpty()) {
+        applyShown();
+        if (focusedIndex >= 0 && shown) {
             int target = Math.min(focusedIndex, cards.size() - 1);
             for (int i = 0; i < items.size(); i++) {
                 if ((items.get(i).source + items.get(i).key).equals(focusedKey)) target = i;

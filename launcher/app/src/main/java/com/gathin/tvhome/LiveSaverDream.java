@@ -433,7 +433,10 @@ public class LiveSaverDream extends DreamService {
 
     private void onSong(NowPlaying.Track track) {
         if (!running) return;
+        boolean started = track != null && !songShown();
         songCard.setTrack(track);
+        // Music is no show: a poster card up when a song starts goes away, and no other comes while it plays.
+        if (started && card.getVisibility() == View.VISIBLE) main.post(hideCard);
     }
 
     private boolean songShown() {
@@ -454,6 +457,10 @@ public class LiveSaverDream extends DreamService {
         public void run() {
             main.removeCallbacks(this);
             if (!running || card.getVisibility() == View.VISIBLE) return;
+            if (songShown()) {   // no poster cards while a song plays
+                main.postDelayed(this, CARD_GAP_MS);
+                return;
+            }
             List<WatchHistory.Item> items = WatchHistory.shown(LiveSaverDream.this,
                     StremioSync.linked(LiveSaverDream.this), StremioSync.dismissed(LiveSaverDream.this),
                     ContinueRow.MAX_CARDS);
@@ -492,7 +499,7 @@ public class LiveSaverDream extends DreamService {
         cardBar.setVisibility(!item.isNew && progress > 0f ? View.VISIBLE : View.INVISIBLE);
         cardPercent.setText(getString(R.string.saver_percent, Math.round(progress * 100)));
 
-        cardRight = !cardRight && !songShown();   // the right corner is the song's while one plays
+        cardRight = !cardRight;
         float x = cardRight ? root.getWidth() - dp(CARD_W) - dp(MARGIN) : dp(MARGIN);
         float y = root.getHeight() - dp(CARD_H) - dp(MARGIN);
         card.setVisibility(View.VISIBLE);
