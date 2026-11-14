@@ -24,7 +24,19 @@ To add or replace one picture, put it in the right folder named after the app's 
 
 ## Continue watching
 
-The row under the dock (`continue_watching`) fills itself; two things to do once after installing the launcher:
+![Home with the Continue watching banners and the filter chips under the dock](screenshots/continue-watching.jpg)
+
+Under the dock (`continue_watching`), what was left part-watched as wide banner cards: the title's backdrop with its
+logo over it (a YouTube video's own picture), the app's icon, how far in it is, and the name and time left under it.
+Stremio's new episodes say so. The cards stand four to a line, as many lines as it takes, and Home scrolls down to
+them; Up from the top line goes to the chips, Up again to the dock.
+
+At the right end of the row's name, chips pick what it shows: **All**, **Stremio**, **YouTube** or **Other** (anything
+else). A chip filters as soon as it is focused; one with nothing to show says "Nothing here yet".
+
+![Home scrolled down to the Continue watching lines](screenshots/continue-watching-scrolled.jpg)
+
+It fills itself; two things to do once after installing the launcher:
 
 1. Let it see what other apps play (it reads their media sessions, not notifications):
 
@@ -41,12 +53,21 @@ Hold OK on a card to remove it, or to disconnect Stremio.
 
 ## Live screensaver
 
+![The live screensaver with a Continue watching card](screenshots/saver-continue-card.jpg)
+
 `LiveSaverDream` plays looping animated 4K scenes (a neon road, cosy pixel-art and candlelit rooms, firefly caves,
 lantern skies, anime streets) and dips through black to the next every 75 seconds. Each is shown whole, edge to edge on a 16:9
 screen, never cropped. At the top centre, like a tablet's lock screen, stand the time with the weather beside it, the
 date, then the greeting with your name, as raised type with a soft shadow and no panel behind it. Every half minute or so a glass card with the poster comes up in
 a bottom corner for something left part-watched, or a new Stremio episode. Press OK while a card is up to jump back
 into it; any other key ends the screensaver.
+
+It starts after five minutes without a key press, the TV's own screen timeout:
+`adb shell settings put system screen_off_timeout 300000` (milliseconds).
+
+The glass cards show a softened copy of the video behind them, refreshed a couple of times a second and only while
+a card is up: each copy reads a 4K frame back from the decoder, and doing that all the time made the screensaver
+stutter.
 
 The weather (`saver_weather`) comes from [Open-Meteo](https://open-meteo.com/): set `weather_location` to a place
 name or `latitude,longitude`, or leave it empty to use the place the TV's internet address points to.
@@ -65,15 +86,21 @@ Any other `.mp4`, `.webm` or `.mkv` put in the theme folder's `saver/` joins the
 
 ## Now playing
 
+![Home with the upright now playing card on the right](screenshots/home-now-playing.jpg)
+
 While Spotify plays (`now_playing`, the apps in `now_playing_apps`), an upright glass card, the cover on top and the
-song, the artist and how far in under it, stands on Home on the right, between the four top buttons and the dock. It
-fades out as soon as the apps scroll and comes back at the top. On the live screensaver the same card stays still in
-the bottom right corner.
+song, the artist and how far in under it, stands on Home on the right, between the four top buttons and the dock,
+its cover sized so the gaps above and below it match. It fades out as soon as the apps scroll and comes back at the
+top.
+
+![The screensaver with the now playing card lying in its bottom right corner](screenshots/saver-now-playing.jpg)
+
+On the live screensaver the card lies down in the bottom right corner, the cover at the left, under a "Now playing
+on Spotify" kicker with small dancing bars, and stays still.
 
 While a song plays:
 
-- **Continue watching steps aside:** the row under the dock and the screensaver's poster cards stay hidden, and come
-  back when the music stops.
+- **The screensaver's Continue watching cards step aside,** and come back when the music stops. Home's row stays.
 - **The TV stays awake on the screensaver.** Android would end the screensaver and put the TV to sleep once the sleep
   timeout has passed since the last key, music or not. So while the screensaver shows a song, the launcher sets
   `sleep_timeout` to never and puts your own value back two minutes after the music stops, or as soon as a key ends
@@ -89,8 +116,10 @@ buttons in one glass bar with a milky lens on the focused one, and makes the doc
 later the glass shows a softened copy of the picture behind it, bent at the edges like a lens, with light along its
 rim. The screensaver's cards use the same glass, over the video.
 
-Clocks are set in Sora, titles in Fraunces and labels in Space Grotesk (all SIL Open Font License), and the Continue
-watching cards show each title's poster.
+With `top_bar_grid` the top bar's buttons (inputs, network, settings, all apps) are square glass icons at the top
+right, all four in one line here (`top_bar_grid_columns`); the greeting and the date get the header's whole width.
+
+Clocks are set in Sora, titles in Fraunces and labels in Space Grotesk (all SIL Open Font License).
 
 On this TV the titles and labels are Product Sans Black instead, all upright (the date too). Product Sans may not be
 shared, so it is not in the repo: put the files in `my-tv/fonts/` (git-ignored), named after the string they replace
