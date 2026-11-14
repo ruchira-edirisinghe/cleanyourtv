@@ -100,6 +100,12 @@ final class WatchHistory {
      * The item's poster: its own, or for a film or show whose backdrop came from Cinemeta (found by name, or Stremio's)
      * the poster under the same id; empty when it has none, such as a YouTube video.
      */
+    /** The item's IMDb id ("tt0903747") when its pictures come from Metahub, or empty. */
+    static String imdbOf(Item it) {
+        Matcher m = METAHUB.matcher(it.cover + " " + it.art + " " + it.poster);
+        return m.find() ? m.group(1) : "";
+    }
+
     static String posterOf(Item it) {
         if (!it.poster.isEmpty()) return it.poster;
         Matcher m = METAHUB.matcher(it.cover + " " + it.art);

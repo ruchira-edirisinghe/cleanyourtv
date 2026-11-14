@@ -40,7 +40,8 @@ import java.util.function.Consumer;
 /**
  * The Continue watching row (continue_watching): a sideways row of cards under the dock, laid over the room
  * DockDecoration leaves below the dock's band, so the grid's positions and its navigation stay as they are. Each card
- * shows its picture, the app's icon, how far in it is, its name and the time left; Stremio's new episodes say so.
+ * is a wide banner: the title's backdrop with its logo over it (a video's own picture for YouTube and the like), the
+ * app's icon and how far in it is, with its name and the time left under it; Stremio's new episodes say so.
  * OK opens it, holding OK offers to remove it. Pictures load off the main thread and are kept on disk.
  */
 final class ContinueRow {
@@ -60,8 +61,8 @@ final class ContinueRow {
     }
 
     static final int MAX_CARDS = 12;
-    /** Poster-shaped cards, 2:3. */
-    private static final float CARD_W_DP = 112f, CARD_H_DP = 168f, GAP_DP = 20f;
+    /** Banner-shaped cards, 16:9. */
+    private static final float CARD_W_DP = 232f, CARD_H_DP = 130f, GAP_DP = 20f;
     private static final float FOCUS_SCALE = 1.08f;
     private static final int STREMIO_PURPLE = 0xFF7B5BF5;
 
@@ -328,6 +329,19 @@ final class ContinueRow {
                 trackLp.bottomMargin = dp(8);
                 card.addView(track, trackLp);
             }
+            // The title's logo over its backdrop, at the bottom left, above the bar or the new episode chip.
+            String imdb = WatchHistory.imdbOf(item);
+            if (!imdb.isEmpty()) {
+                ImageView logo = new ImageView(activity);
+                logo.setAdjustViewBounds(true);
+                logo.setMaxWidth(Math.round(cardW * 0.6f));
+                logo.setScaleType(ImageView.ScaleType.FIT_START);
+                FrameLayout.LayoutParams logoLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                        dp(36), Gravity.BOTTOM | Gravity.START);
+                logoLp.setMargins(dp(10), 0, 0, dp(item.isNew ? 32 : 18));
+                card.addView(logo, logoLp);
+                loadLogo("https://images.metahub.space/logo/medium/" + imdb + "/img", logo);
+            }
             title.setText(item.title);
             meta.setText(metaLine(activity, item));
             loadCardArt(item, art, card);
@@ -458,9 +472,10 @@ final class ContinueRow {
     // ---- pictures -----------------------------------------------------------------------------------------------
 
     private void loadCardArt(WatchHistory.Item item, ImageView art, View card) {
-        // The poster; a video with none (YouTube) shows the middle of its picture.
-        String poster = WatchHistory.posterOf(item);
-        String src = !poster.isEmpty() ? poster : !item.art.isEmpty() ? item.art : item.cover;
+        // A wide picture: the title's backdrop, else the app's own picture of it (a YouTube video's), else its cover.
+        String imdb = WatchHistory.imdbOf(item);
+        String src = !imdb.isEmpty() ? "https://images.metahub.space/background/medium/" + imdb + "/img"
+                : !item.art.isEmpty() ? item.art : !item.cover.isEmpty() ? item.cover : WatchHistory.posterOf(item);
         art.setTag(src);
         if (src.isEmpty()) {
             Drawable banner = appBanner(item.pkg);
@@ -479,6 +494,20 @@ final class ContinueRow {
                     Drawable banner = appBanner(item.pkg);
                     if (banner != null) art.setImageDrawable(banner);
                 }
+            });
+        });
+    }
+
+    /** A title's logo for its card, off the main thread; a title with none keeps its name under the card only. */
+    private void loadLogo(String src, ImageView logo) {
+        logo.setTag(src);
+        pictures.execute(() -> {
+            Bitmap b = picture(activity, src, Math.round(cardW * 0.6f));
+            main.post(() -> {
+                if (b == null || !src.equals(logo.getTag())) return;
+                logo.setAlpha(0f);
+                logo.setImageBitmap(b);
+                logo.animate().alpha(1f).setDuration(220).start();
             });
         });
     }
