@@ -2538,6 +2538,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         continueRow = new ContinueRow(this, new ContinueRow.Host() {
             @Override
             public void onContinueFocused(View card, WatchHistory.Item item) {
+                // Right after a start the row's cards can be laid out before the dock's tiles and take the first focus:
+                // until the tiles are ready, focus belongs on the dock.
+                if (!tilesReady) {
+                    focusTile(lastFocused >= 0 && lastFocused < adapter.appCount() ? lastFocused : 0);
+                    return;
+                }
                 showContinue(item, card);
             }
 
