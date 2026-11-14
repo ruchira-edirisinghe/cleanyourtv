@@ -47,8 +47,9 @@ import java.util.concurrent.Executors;
  * whole and at its full resolution, dipping through black to the next every so often. At the top centre, like a
  * tablet's lock screen, the time, the date and a greeting stand on the scene as raised type (DepthShadow), with no
  * panel behind them; now and then a glass card with the poster
- * of something left part-watched or a new episode (WatchHistory) rises in a bottom corner, and OK opens it. Any other key
- * ends the screensaver. Pick it with `settings put secure screensaver_components com.gathin.tvhome/.LiveSaverDream`.
+ * of something left part-watched or a new episode (WatchHistory) rises in a bottom corner, and OK opens it. With
+ * now_playing, the song a music app plays stands in the bottom right corner on the same glass (NowPlayingCard), still,
+ * for as long as it plays. Any other key ends the screensaver. Pick it with `settings put secure screensaver_components com.gathin.tvhome/.LiveSaverDream`.
  */
 public class LiveSaverDream extends DreamService {
     private static final long CLIP_MS = 75_000, DIP_OUT_MS = 650, DIP_IN_MS = 900;
@@ -96,6 +97,10 @@ public class LiveSaverDream extends DreamService {
     private int cardIndex;
     private boolean cardShown;
     private boolean cardRight;
+
+    // the song (now_playing)
+    private NowPlaying nowPlaying;
+    private NowPlayingCard songCard;
 
     @Override
     public void onAttachedToWindow() {
@@ -150,6 +155,7 @@ public class LiveSaverDream extends DreamService {
 
         buildIsland();
         buildCard();
+        if (config.nowPlaying) buildSongCard();
         dip = new View(this);
         dip.setBackgroundColor(Color.BLACK);
         root.addView(dip, match());
@@ -413,6 +419,27 @@ public class LiveSaverDream extends DreamService {
         root.addView(card, new FrameLayout.LayoutParams(dp(CARD_W), dp(CARD_H)));
     }
 
+    // ---- the song (now_playing) ----------------------------------------------------------------------------------
+
+    /** The song that plays, in the bottom right corner: it fades in and out there and never moves. */
+    private void buildSongCard() {
+        songCard = new NowPlayingCard(this, backdrop);
+        FrameLayout.LayoutParams lp = NowPlayingCard.params(this, Gravity.BOTTOM | Gravity.END);
+        lp.rightMargin = dp(MARGIN);
+        lp.bottomMargin = dp(MARGIN);
+        root.addView(songCard, lp);
+        nowPlaying = new NowPlaying(this, config.nowPlayingApps, this::onSong);
+    }
+
+    private void onSong(NowPlaying.Track track) {
+        if (!running) return;
+        songCard.setTrack(track);
+    }
+
+    private boolean songShown() {
+        return songCard != null && songCard.hasSong();
+    }
+
     private ViewOutlineProvider rounded(float radiusDp) {
         return new ViewOutlineProvider() {
             @Override
@@ -465,7 +492,7 @@ public class LiveSaverDream extends DreamService {
         cardBar.setVisibility(!item.isNew && progress > 0f ? View.VISIBLE : View.INVISIBLE);
         cardPercent.setText(getString(R.string.saver_percent, Math.round(progress * 100)));
 
-        cardRight = !cardRight;
+        cardRight = !cardRight && !songShown();   // the right corner is the song's while one plays
         float x = cardRight ? root.getWidth() - dp(CARD_W) - dp(MARGIN) : dp(MARGIN);
         float y = root.getHeight() - dp(CARD_H) - dp(MARGIN);
         card.setVisibility(View.VISIBLE);
@@ -654,6 +681,7 @@ public class LiveSaverDream extends DreamService {
         startWeather();
         main.postDelayed(copyBackdrop, 400);
         main.postDelayed(showCard, CARD_FIRST_MS);
+        if (nowPlaying != null) nowPlaying.start();
     }
 
     @Override
@@ -673,6 +701,7 @@ public class LiveSaverDream extends DreamService {
         running = false;
         main.removeCallbacksAndMessages(null);
         releasePlayer();
+        if (nowPlaying != null) nowPlaying.stop();
     }
 
     @Override
