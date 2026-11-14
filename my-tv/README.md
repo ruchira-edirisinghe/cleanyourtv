@@ -1,4 +1,16 @@
-# My TV's art
+# Midnight Glass
+
+![Midnight Glass on Home: the now playing card under the glass top buttons, the dock and Continue watching](screenshots/home-now-playing.jpg)
+
+A fork of the cleanyourtv launcher by [ruchira-edirisinghe](https://github.com/ruchira-edirisinghe), made for their
+own TV to make everyday watching and working easier: liquid glass, a now playing card for Spotify, Continue watching
+banners with filters, a hero banner for every app and a live 4K screensaver that keeps the music going. Anyone can
+build it and change it to their liking; everything below says which switch or file does what.
+
+A lighter version that needs no fork, only the main launcher's own settings, is offered to the main repo as the
+`midnight-glass` theme.
+
+## My TV's art
 
 The pictures this fork's launcher shows on my TCL Smart TV Pro (G08, Google TV 14). They are not built into the
 APK: the launcher reads them from its theme folder on the TV.
@@ -69,13 +81,19 @@ The glass cards show a softened copy of the video behind them, refreshed a coupl
 a card is up: each copy reads a 4K frame back from the decoder, and doing that all the time made the screensaver
 stutter.
 
+Music keeps playing cleanly through the screensaver. On this TV, closing a video player and opening another makes the
+sound system move its lip-sync delay (135 ms to none and back), which cut Spotify at every scene change. So the
+screensaver keeps one decoder (`ScenePlayer`) for as long as it runs: each scene loops on one clock and the next one
+follows on the same decoder, and every scene is 30 fps so the delay never has a reason to move.
+
 The weather (`saver_weather`) comes from [Open-Meteo](https://open-meteo.com/): set `weather_location` to a place
 name or `latitude,longitude`, or leave it empty to use the place the TV's internet address points to.
 
 The scenes are not in this repo. They are free 3840x2160 videos from
 [Pixabay](https://pixabay.com/service/license-summary/), which may be used but not passed on as files.
 [`saver/get-scenes.sh`](saver/get-scenes.sh) downloads them from there, keeps them at 4K without sound, smooths the
-loops that would jump, plays the 25 fps ones at 30 fps (25 judders on the 60 Hz panel) and writes them to the TV:
+loops that would jump, brings every one to 30 fps (25 fps ones play their frames a fifth faster, as 25 judders on the
+60 Hz panel; 60 fps ones keep every other frame) and writes them to the TV:
 
 ```bash
 TV_HOST=<tv ip>:<port> bash my-tv/saver/get-scenes.sh
@@ -89,14 +107,15 @@ Any other `.mp4`, `.webm` or `.mkv` put in the theme folder's `saver/` joins the
 ![Home with the upright now playing card on the right](screenshots/home-now-playing.jpg)
 
 While Spotify plays (`now_playing`, the apps in `now_playing_apps`), an upright glass card, the cover on top and the
-song, the artist and how far in under it, stands on Home on the right, between the four top buttons and the dock,
-its cover sized so the gaps above and below it match. It fades out as soon as the apps scroll and comes back at the
+song, the artist and how far in under it, stands on Home on the right, between the four top buttons and the dock and
+exactly as wide as the buttons, with the same gap above and below it. The song's whole name shows, over up to three
+lines, and the cover takes the height the text leaves. It fades out as soon as the apps scroll and comes back at the
 top.
 
 ![The screensaver with the now playing card lying in its bottom right corner](screenshots/saver-now-playing.jpg)
 
 On the live screensaver the card lies down in the bottom right corner, the cover at the left, under a "Now playing
-on Spotify" kicker with small dancing bars, and stays still.
+on Spotify" kicker with small dancing bars, one line for the title, and stays still.
 
 While a song plays:
 
