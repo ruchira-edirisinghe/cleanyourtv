@@ -63,6 +63,25 @@ adb shell settings put secure screensaver_components com.gathin.tvhome/.LiveSave
 
 Any other `.mp4`, `.webm` or `.mkv` put in the theme folder's `saver/` joins the rotation.
 
+## Now playing
+
+While Spotify plays (`now_playing`, the apps in `now_playing_apps`), a glass card with the cover, the song, the
+artist and how far in stands on Home in the hero area on the left, between the clock and the focused app's name. It
+fades out as soon as the apps scroll and comes back at the top. On the live screensaver the same card stays still in
+the bottom right corner.
+
+While a song plays:
+
+- **Continue watching steps aside:** the row under the dock and the screensaver's poster cards stay hidden, and come
+  back when the music stops.
+- **The TV stays awake on the screensaver.** Android would end the screensaver and put the TV to sleep once the sleep
+  timeout has passed since the last key, music or not. So while the screensaver shows a song, the launcher sets
+  `sleep_timeout` to never and puts your own value back two minutes after the music stops, or as soon as a key ends
+  the screensaver. If the launcher died while holding it, Home puts it back when it starts.
+
+It reads the songs with the same listener as Continue watching (`allow_listener ... WatchListener`, above) and changes
+the timeout with `WRITE_SECURE_SETTINGS`, both already granted on this TV.
+
 ## Liquid glass
 
 `liquid_glass` sets the header as raised type with no panel (the clock, then the greeting over the date), puts the top
