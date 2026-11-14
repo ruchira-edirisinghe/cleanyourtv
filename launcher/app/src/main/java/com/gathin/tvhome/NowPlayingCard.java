@@ -24,23 +24,30 @@ import android.widget.TextView;
 import java.util.Locale;
 
 /**
- * now_playing: an upright glass card with the song that plays (NowPlaying): its cover on top, then a kicker with small
- * dancing bars, the title, the artist, and a thin bar with the time in and the length. It only fades in and out, never
- * moves: Home puts it on the right between the top buttons and the dock, the screensaver in its bottom right corner.
- * While shown, the bars and the time tick.
+ * now_playing: a glass card with the song that plays (NowPlaying): its cover, a kicker with small dancing bars, the
+ * title, the artist, and a thin bar with the time in and the length. Home has it upright, the cover on top, on the right
+ * between the top buttons and the dock, its cover shrinking to fit there (fitHeight); the screensaver has it lying
+ * down, the cover at the left, in its bottom right corner. It only fades in and out, never moves. While shown, the
+ * bars and the time tick.
  */
 final class NowPlayingCard extends FrameLayout {
-    /** The card's width and about its height, in dp: the same on Home and on the screensaver. */
+    /** The upright card's width and about its height, in dp. */
     static final int W = 176, H = 264;
-    private static final int PAD = 13, ART = W - 2 * PAD, GREEN = 0xFF1ED760;
+    private static final int PAD = 13, ART = W - 2 * PAD;
+    /** The card lying down: its size and its cover's, in dp. */
+    private static final int WIDE_W = 440, WIDE_H = 104, WIDE_ART = 76;
+    private static final int GREEN = 0xFF1ED760;
     private static final long FADE_MS = 320, TICK_MS = 1_000;
 
     private final float density;
+    private final boolean upright;
     private final ImageView art;
     private final TextView kicker, title, artist, elapsed, length;
     private final View fill;
     private final Bars bars;
     private NowPlaying.Track track;
+    /** The card's height without the cover, once laid out (0 before). */
+    private int chrome;
     /** A song to show, and whether its place lets it show now (Home hides it once the apps scroll). */
     private boolean hasSong, allowed = true, visibleNow;
 
@@ -54,8 +61,10 @@ final class NowPlayingCard extends FrameLayout {
         }
     };
 
-    NowPlayingCard(Context context, GlassBackdrop backdrop) {
+    /** @param upright Home's card, the cover on top; false lays it down, the cover at the left (the screensaver's). */
+    NowPlayingCard(Context context, GlassBackdrop backdrop, boolean upright) {
         super(context);
+        this.upright = upright;
         density = context.getResources().getDisplayMetrics().density;
         setBackground(new GlassDrawable(backdrop, GlassDrawable.SMOKE, dp(22), density));
         setClipToOutline(true);
@@ -65,47 +74,34 @@ final class NowPlayingCard extends FrameLayout {
         setFocusable(false);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
 
-        LinearLayout column = new LinearLayout(context);
-        column.setOrientation(LinearLayout.VERTICAL);
-        column.setPadding(dp(PAD), dp(PAD), dp(PAD), dp(PAD));
-
         art = new ImageView(context);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
         art.setClipToOutline(true);
-        art.setOutlineProvider(rounded(14));
+        art.setOutlineProvider(rounded(upright ? 14 : 12));
         art.setBackgroundColor(0x33000000);
-        column.addView(art, new LinearLayout.LayoutParams(dp(ART), dp(ART)));
 
         LinearLayout top = new LinearLayout(context);
         top.setOrientation(LinearLayout.HORIZONTAL);
         top.setGravity(Gravity.CENTER_VERTICAL);
         bars = new Bars(context);
-        top.addView(bars, new LinearLayout.LayoutParams(dp(12), dp(10)));
-        kicker = text(context, 10, GREEN, R.string.font_label_bold);
-        kicker.setLetterSpacing(0.16f);
+        top.addView(bars, upright ? new LinearLayout.LayoutParams(dp(12), dp(10))
+                : new LinearLayout.LayoutParams(dp(13), dp(11)));
+        kicker = text(context, upright ? 10 : 11, GREEN, R.string.font_label_bold);
+        kicker.setLetterSpacing(upright ? 0.16f : 0.18f);
         kicker.setSingleLine(true);
         kicker.setEllipsize(TextUtils.TruncateAt.END);
         LinearLayout.LayoutParams kl = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
-        kl.leftMargin = dp(7);
+        kl.leftMargin = dp(upright ? 7 : 8);
         top.addView(kicker, kl);
-        LinearLayout.LayoutParams topl = new LinearLayout.LayoutParams(-1, -2);
-        topl.topMargin = dp(12);
-        column.addView(top, topl);
 
-        title = text(context, 17, Color.WHITE, R.string.font_title);
+        title = text(context, upright ? 17 : 19, Color.WHITE, R.string.font_title);
         title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setIncludeFontPadding(false);
-        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-1, -2);
-        tl.topMargin = dp(7);
-        column.addView(title, tl);
 
-        artist = text(context, 12, 0xB3FFFFFF, R.string.font_label);
+        artist = text(context, upright ? 12 : 13, 0xB3FFFFFF, R.string.font_label);
         artist.setSingleLine(true);
         artist.setEllipsize(TextUtils.TruncateAt.END);
-        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(-1, -2);
-        al.topMargin = dp(2);
-        column.addView(artist, al);
 
         LinearLayout bar = new LinearLayout(context);
         bar.setOrientation(LinearLayout.HORIZONTAL);
@@ -126,22 +122,87 @@ final class NowPlayingCard extends FrameLayout {
         fill.setScaleX(0f);
         trackView.addView(fill, new FrameLayout.LayoutParams(-1, -1));
         LinearLayout.LayoutParams trl = new LinearLayout.LayoutParams(0, dp(3), 1f);
-        trl.leftMargin = dp(7);
-        trl.rightMargin = dp(7);
+        trl.leftMargin = dp(upright ? 7 : 8);
+        trl.rightMargin = dp(upright ? 7 : 8);
         bar.addView(trackView, trl);
         length = text(context, 10, 0x99FFFFFF, R.string.font_label_bold);
         bar.addView(length, new LinearLayout.LayoutParams(-2, -2));
-        LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-1, -2);
-        bl.topMargin = dp(9);
-        column.addView(bar, bl);
 
-        addView(column, new FrameLayout.LayoutParams(-1, -2));
+        LinearLayout.LayoutParams tl = new LinearLayout.LayoutParams(-1, -2);
+        LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(-1, -2);
+        al.topMargin = dp(2);
+        if (upright) {
+            LinearLayout column = new LinearLayout(context);
+            column.setOrientation(LinearLayout.VERTICAL);
+            column.setPadding(dp(PAD), dp(PAD), dp(PAD), dp(PAD));
+            column.addView(art, new LinearLayout.LayoutParams(dp(ART), dp(ART)));
+            LinearLayout.LayoutParams topl = new LinearLayout.LayoutParams(-1, -2);
+            topl.topMargin = dp(12);
+            column.addView(top, topl);
+            tl.topMargin = dp(7);
+            column.addView(title, tl);
+            column.addView(artist, al);
+            LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-1, -2);
+            bl.topMargin = dp(9);
+            column.addView(bar, bl);
+            addView(column, new FrameLayout.LayoutParams(-1, -2));
+        } else {
+            LinearLayout row = new LinearLayout(context);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            int pad = (WIDE_H - WIDE_ART) / 2;
+            row.setPadding(dp(pad), dp(pad), dp(20), dp(pad));
+            row.addView(art, new LinearLayout.LayoutParams(dp(WIDE_ART), dp(WIDE_ART)));
+            LinearLayout column = new LinearLayout(context);
+            column.setOrientation(LinearLayout.VERTICAL);
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, dp(WIDE_ART), 1f);
+            cl.leftMargin = dp(16);
+            row.addView(column, cl);
+            column.addView(top, new LinearLayout.LayoutParams(-1, -2));
+            tl.topMargin = dp(6);
+            column.addView(title, tl);
+            column.addView(artist, al);
+            column.addView(new View(context), new LinearLayout.LayoutParams(1, 0, 1f));
+            column.addView(bar, new LinearLayout.LayoutParams(-1, -2));
+            addView(row, new FrameLayout.LayoutParams(-1, -1));
+        }
     }
 
-    /** The card's layout params: its width, and the height its content takes; the caller sets the gravity or the position. */
-    static FrameLayout.LayoutParams params(Context context, int gravity) {
-        float d = context.getResources().getDisplayMetrics().density;
-        return new FrameLayout.LayoutParams(Math.round(W * d), ViewGroup.LayoutParams.WRAP_CONTENT, gravity);
+    /** The card's layout params for its shape; the caller sets the gravity or the position. */
+    FrameLayout.LayoutParams params(int gravity) {
+        return upright ? new FrameLayout.LayoutParams(dp(W), ViewGroup.LayoutParams.WRAP_CONTENT, gravity)
+                : new FrameLayout.LayoutParams(dp(WIDE_W), dp(WIDE_H), gravity);
+    }
+
+    /**
+     * Home: the cover shrinks (or grows back to its full size) so the card is this tall; the card is as wide as the cover
+     * and its margins. Changes nothing when it already fits.
+     */
+    void fitHeight(int heightPx) {
+        if (!upright) return;
+        int rest = chrome > 0 ? chrome : dp(H - ART);
+        int side = Math.max(dp(96), Math.min(dp(ART), heightPx - rest));
+        ViewGroup.LayoutParams alp = art.getLayoutParams();
+        if (Math.abs(alp.width - side) <= 1) return;
+        alp.width = side;
+        alp.height = side;
+        art.setLayoutParams(alp);
+        ViewGroup.LayoutParams lp = getLayoutParams();
+        if (lp != null) {
+            lp.width = targetWidth();
+            setLayoutParams(lp);
+        }
+    }
+
+    /** The card's width for its cover now, in px. */
+    int targetWidth() {
+        return art.getLayoutParams().width + 2 * dp(PAD);
+    }
+
+    @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        if (h > 0) chrome = h - art.getLayoutParams().height;
     }
 
     /** Shows this song (null: nothing plays, the card fades out). */
@@ -170,7 +231,10 @@ final class NowPlayingCard extends FrameLayout {
     private void showSong(NowPlaying.Track t) {
         if (t.art != null) art.setImageBitmap(t.art);
         else art.setImageDrawable(appIcon(t.pkg));
-        kicker.setText(getContext().getString(R.string.now_playing).toUpperCase(Locale.getDefault()));
+        String app = upright ? "" : appLabel(t.pkg);   // the upright card has no room for the app's name
+        String head = app.isEmpty() ? getContext().getString(R.string.now_playing)
+                : getContext().getString(R.string.now_playing_on, app);
+        kicker.setText(head.toUpperCase(Locale.getDefault()));
         title.setText(t.title);
         String by = t.artist.isEmpty() ? t.album : t.artist;
         artist.setText(by);
@@ -217,6 +281,15 @@ final class NowPlayingCard extends FrameLayout {
         removeCallbacks(tick);
         bars.setRunning(false);
         super.onDetachedFromWindow();
+    }
+
+    private String appLabel(String pkg) {
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            return pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString();
+        } catch (PackageManager.NameNotFoundException e) {
+            return "";
+        }
     }
 
     private Drawable appIcon(String pkg) {

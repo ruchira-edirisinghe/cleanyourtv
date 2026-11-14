@@ -2728,10 +2728,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * dock. It only fades: out as soon as the apps scroll away from the top, back when they return.
      */
     private void setUpNowPlaying(Config cfg) {
-        nowPlayingCard = new NowPlayingCard(this, glassBackdrop);
+        nowPlayingCard = new NowPlayingCard(this, glassBackdrop, true);
         View content = (View) headerRow().getParent();
-        root.addView(nowPlayingCard, root.indexOfChild(content) + 1,
-                NowPlayingCard.params(this, Gravity.TOP | Gravity.START));
+        root.addView(nowPlayingCard, root.indexOfChild(content) + 1, nowPlayingCard.params(Gravity.TOP | Gravity.START));
         nowPlaying = new NowPlaying(this, cfg.nowPlayingApps, this::showNowPlaying);
         grid.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
@@ -2764,8 +2763,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /**
-     * Keeps the card in the middle of the room between the top buttons and the dock's band, its right edge in line with
-     * the buttons'. Resting places are used (no slide, no focus zoom), and while it fades out after a scroll it stays put.
+     * Keeps the card in the room between the top buttons and the dock's band, as far from each, its right edge in line
+     * with the buttons'; the cover shrinks to fit. Resting places are used (no slide, no focus zoom), and while it fades
+     * out after a scroll it stays put.
      */
     private void placeNowPlaying() {
         if (nowPlayingCard.getVisibility() != View.VISIBLE || !atTop(grid)) return;
@@ -2786,10 +2786,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // The dock's glass band starts about 14dp above its tiles.
             bottom = at[1] - base[1] - dock.itemView.getTranslationY() + tile.getTop() - 14 * density;
         }
-        float h = nowPlayingCard.getHeight() > 0 ? nowPlayingCard.getHeight() : NowPlayingCard.H * density;
-        float w = nowPlayingCard.getWidth() > 0 ? nowPlayingCard.getWidth() : NowPlayingCard.W * density;
-        float y = Math.max(top + 12 * density, (top + bottom - h) / 2f);
-        float x = right - w;
+        float gap = 22 * density;
+        nowPlayingCard.fitHeight(Math.round(bottom - top - 2 * gap));
+        float y = top + gap;
+        float x = right - nowPlayingCard.targetWidth();
         if (nowPlayingCard.getTranslationY() != y) nowPlayingCard.setTranslationY(y);
         if (nowPlayingCard.getTranslationX() != x) nowPlayingCard.setTranslationX(x);
     }

@@ -426,8 +426,8 @@ public class LiveSaverDream extends DreamService {
 
     /** The song that plays, in the bottom right corner: it fades in and out there and never moves. */
     private void buildSongCard() {
-        songCard = new NowPlayingCard(this, backdrop);
-        FrameLayout.LayoutParams lp = NowPlayingCard.params(this, Gravity.BOTTOM | Gravity.END);
+        songCard = new NowPlayingCard(this, backdrop, false);
+        FrameLayout.LayoutParams lp = songCard.params(Gravity.BOTTOM | Gravity.END);
         lp.rightMargin = dp(MARGIN);
         lp.bottomMargin = dp(MARGIN);
         root.addView(songCard, lp);
