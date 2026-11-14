@@ -295,8 +295,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** now_playing: what the music apps play, and its card in the hero area. */
     private NowPlaying nowPlaying;
     private NowPlayingCard nowPlayingCard;
-    /** The tallest the hero has been (with its "Last opened" line), so the card above it never moves between apps. */
-    private int heroTallest;
     private int glassSignature;
     private long glassCaptured;
     private final Runnable glassCapture = this::captureGlass;
@@ -2726,8 +2724,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- now playing -------------------------------------------------------------------------------
 
     /**
-     * now_playing: the song a music app plays, as a glass card in the hero area on the left, between the clock and the
-     * focused app's name. It only fades: out as soon as the apps scroll away from the top, back when they return.
+     * now_playing: the song a music app plays, as an upright glass card on the right, between the top buttons and the
+     * dock. It only fades: out as soon as the apps scroll away from the top, back when they return.
      */
     private void setUpNowPlaying(Config cfg) {
         nowPlayingCard = new NowPlayingCard(this, glassBackdrop);
@@ -2766,21 +2764,32 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     /**
-     * Keeps the card in the middle of the room between the header and the hero's app name, lined up with the name.
-     * The header's resting place is used, so the card stays put while the header slides.
+     * Keeps the card in the middle of the room between the top buttons and the dock's band, its right edge in line with
+     * the buttons'. Resting places are used (no slide, no focus zoom), and while it fades out after a scroll it stays put.
      */
     private void placeNowPlaying() {
-        heroTallest = Math.max(heroTallest, hero.getHeight());
-        if (nowPlayingCard.getVisibility() != View.VISIBLE) return;
-        View header = headerRow();
-        View content = (View) header.getParent();
-        float top = content.getTop() + header.getTop() + header.getHeight() + 8 * density;
+        if (nowPlayingCard.getVisibility() != View.VISIBLE || !atTop(grid)) return;
+        int[] at = new int[2], base = new int[2];
+        root.getLocationInWindow(base);
+        View bar = findViewById(R.id.topButtons);
+        View above = bar.getVisibility() == View.VISIBLE && bar.getHeight() > 0 ? bar : headerRow();
+        above.getLocationInWindow(at);
+        float top = at[1] - base[1] - above.getTranslationY() + above.getHeight();
+        float right = bar.getVisibility() == View.VISIBLE && bar.getWidth() > 0
+                ? at[0] - base[0] - bar.getTranslationX() + bar.getWidth()
+                : root.getWidth() - ((View) headerRow().getParent()).getPaddingEnd();
+        float bottom = root.getHeight() * 0.7f;
+        RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
+        View tile = dock == null ? null : dock.itemView.findViewById(R.id.card);
+        if (tile != null) {
+            dock.itemView.getLocationInWindow(at);
+            // The dock's glass band starts about 14dp above its tiles.
+            bottom = at[1] - base[1] - dock.itemView.getTranslationY() + tile.getTop() - 14 * density;
+        }
         float h = nowPlayingCard.getHeight() > 0 ? nowPlayingCard.getHeight() : NowPlayingCard.H * density;
-        // The hero's bottom stays just above the dock; its top moves with what it shows.
-        float heroTop = hero.getY() + hero.getHeight() - heroTallest;
-        float bottom = heroTallest > 0 && heroTop > top + h ? heroTop - 4 * density : top + h + 48 * density;
-        float y = Math.max(top, (top + bottom - h) / 2f);
-        float x = hero.getLeft() + heroName.getLeft() + 2 * density;
+        float w = nowPlayingCard.getWidth() > 0 ? nowPlayingCard.getWidth() : NowPlayingCard.W * density;
+        float y = Math.max(top + 12 * density, (top + bottom - h) / 2f);
+        float x = right - w;
         if (nowPlayingCard.getTranslationY() != y) nowPlayingCard.setTranslationY(y);
         if (nowPlayingCard.getTranslationX() != x) nowPlayingCard.setTranslationX(x);
     }
