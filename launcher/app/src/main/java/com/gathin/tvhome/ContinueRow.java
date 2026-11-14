@@ -43,8 +43,8 @@ import java.util.function.Consumer;
  * (Home scrolls down to them), laid over the room DockDecoration leaves below the dock's band, so the grid's positions and its navigation stay as they are. Each card
  * is a wide banner: the title's backdrop with its logo over it (a video's own picture for YouTube and the like), the
  * app's icon and how far in it is, with its name and the time left under it; Stremio's new episodes say so. Beside
- * the row's name, chips pick what it shows: All, Stremio, YouTube or Other (only those it has, and only when it has
- * more than one); a chip filters the row as soon as it is focused.
+ * the row's name, chips pick what it shows: All, Stremio, YouTube or Other; a chip filters the row as soon as it is
+ * focused, and one with nothing to show says so.
  * OK opens it, holding OK offers to remove it. Pictures load off the main thread and are kept on disk.
  */
 final class ContinueRow {
@@ -186,7 +186,7 @@ final class ContinueRow {
     }
 
     private void applyShown() {
-        boolean nowShown = !cards.isEmpty();
+        boolean nowShown = !all.isEmpty() || connect;
         view.setVisibility(nowShown ? View.VISIBLE : View.GONE);
         if (nowShown != shown) {
             shown = nowShown;
@@ -313,20 +313,13 @@ final class ContinueRow {
         rebuild();
     }
 
-    /** Shows the chips the row has items for (none when it has only one kind), and the cards the picked one shows. */
+    /** The chips (whenever the row has anything), and the cards the picked one shows. */
     private void rebuild() {
-        boolean[] has = new boolean[chips.length];
-        for (WatchHistory.Item it : all) has[kind(it)] = true;
-        if (connect) has[STREMIO] = true;
-        int kinds = (has[STREMIO] ? 1 : 0) + (has[YOUTUBE] ? 1 : 0) + (has[OTHER] ? 1 : 0);
-        boolean showChips = kinds > 1;
-        chips[ALL].setVisibility(showChips ? View.VISIBLE : View.GONE);
-        for (int i = 1; i < chips.length; i++) chips[i].setVisibility(showChips && has[i] ? View.VISIBLE : View.GONE);
-        if (filter != ALL && (!showChips || !has[filter])) {
-            boolean refocus = chips[filter].hasFocus();
+        boolean showChips = !all.isEmpty();
+        for (TextView chip : chips) chip.setVisibility(showChips ? View.VISIBLE : View.GONE);
+        if (!showChips && filter != ALL) {
             filter = ALL;
             for (int i = 0; i < chips.length; i++) chips[i].setActivated(i == ALL);
-            if (refocus && showChips) chips[ALL].requestFocus();
         }
         List<WatchHistory.Item> shownItems = new ArrayList<>();
         for (WatchHistory.Item it : all) if (filter == ALL || kind(it) == filter) shownItems.add(it);
@@ -350,6 +343,15 @@ final class ContinueRow {
         strip.removeAllViews();
         for (int i = 0; i < items.size(); i++) addCard(items.get(i), i);
         if (connect) addCard(null, items.size());
+        if (cards.isEmpty() && !all.isEmpty()) {
+            // A chip with nothing to show: say so, where its cards would be.
+            TextView none = text(14f, 0x99FFFFFF, false);
+            none.setText(R.string.continue_filter_none);
+            LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            nlp.topMargin = dp(16);
+            strip.addView(none, nlp);
+        }
         boolean wasShown = shown;
         applyShown();
         // Another number of lines: the room under the dock changes too.
