@@ -96,13 +96,16 @@ final class NowPlayingCard extends FrameLayout {
         top.addView(kicker, kl);
 
         title = text(context, upright ? 17 : 19, Color.WHITE, R.string.font_title);
-        // The song's whole name, over as many lines as it takes (three on Home, two lying down); only a longer one ends
-        // in an ellipsis.
-        title.setSingleLine(false);
-        title.setMaxLines(upright ? 3 : 2);
+        // Home: the song's whole name, over up to three lines; only a longer one ends in an ellipsis. Lying down, one line.
+        if (upright) {
+            title.setSingleLine(false);
+            title.setMaxLines(3);
+            title.setLineSpacing(dp(2), 1f);
+        } else {
+            title.setSingleLine(true);
+        }
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setIncludeFontPadding(false);
-        title.setLineSpacing(dp(2), 1f);
 
         artist = text(context, upright ? 12 : 13, 0xB3FFFFFF, R.string.font_label);
         artist.setSingleLine(true);
@@ -160,9 +163,7 @@ final class NowPlayingCard extends FrameLayout {
             row.addView(art, new LinearLayout.LayoutParams(dp(WIDE_ART), dp(WIDE_ART)));
             LinearLayout column = new LinearLayout(context);
             column.setOrientation(LinearLayout.VERTICAL);
-            // As tall as the cover, or taller for a name on two lines (the card grows with it).
-            column.setMinimumHeight(dp(WIDE_ART));
-            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+            LinearLayout.LayoutParams cl = new LinearLayout.LayoutParams(0, dp(WIDE_ART), 1f);
             cl.leftMargin = dp(16);
             row.addView(column, cl);
             column.addView(top, new LinearLayout.LayoutParams(-1, -2));
@@ -170,17 +171,15 @@ final class NowPlayingCard extends FrameLayout {
             column.addView(title, tl);
             column.addView(artist, al);
             column.addView(new View(context), new LinearLayout.LayoutParams(1, 0, 1f));
-            LinearLayout.LayoutParams bl = new LinearLayout.LayoutParams(-1, -2);
-            bl.topMargin = dp(6);
-            column.addView(bar, bl);
-            addView(row, new FrameLayout.LayoutParams(-1, -2));
+            column.addView(bar, new LinearLayout.LayoutParams(-1, -2));
+            addView(row, new FrameLayout.LayoutParams(-1, -1));
         }
     }
 
     /** The card's layout params for its shape; the caller sets the gravity or the position. */
     FrameLayout.LayoutParams params(int gravity) {
         return upright ? new FrameLayout.LayoutParams(dp(W), ViewGroup.LayoutParams.WRAP_CONTENT, gravity)
-                : new FrameLayout.LayoutParams(dp(WIDE_W), ViewGroup.LayoutParams.WRAP_CONTENT, gravity);
+                : new FrameLayout.LayoutParams(dp(WIDE_W), dp(WIDE_H), gravity);
     }
 
     /**
