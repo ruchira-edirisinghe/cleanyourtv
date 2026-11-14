@@ -55,7 +55,7 @@ import java.util.concurrent.Executors;
 public class LiveSaverDream extends DreamService {
     private static final long CLIP_MS = 75_000, DIP_OUT_MS = 650, DIP_IN_MS = 900;
     private static final long CARD_FIRST_MS = 7_000, CARD_SHOW_MS = 11_000, CARD_GAP_MS = 20_000;
-    private static final long BACKDROP_MS = 120, MINUTE_MS = 60_000;
+    private static final long BACKDROP_MS = 400, MINUTE_MS = 60_000;
     /** After the music stops, the TV keeps awake this long before its own sleep timeout counts again. */
     private static final long AWAKE_AFTER_SONG_MS = 120_000;
     private static final int CYAN = 0xFF7FE7FF, VIOLET = 0xFFB18CFF, GOLD = 0xFFFFD27A;
@@ -508,6 +508,7 @@ public class LiveSaverDream extends DreamService {
         cardBar.setVisibility(!item.isNew && progress > 0f ? View.VISIBLE : View.INVISIBLE);
         cardPercent.setText(getString(R.string.saver_percent, Math.round(progress * 100)));
 
+        copyScene();   // the glass shows this scene from its first frame, not the one before
         cardRight = !cardRight;
         float x = cardRight ? root.getWidth() - dp(CARD_W) - dp(MARGIN) : dp(MARGIN);
         float y = root.getHeight() - dp(CARD_H) - dp(MARGIN);
@@ -666,7 +667,10 @@ public class LiveSaverDream extends DreamService {
         mp.release();
     }
 
-    /** A few times a second the glass gets a fresh copy of the scene behind it (not while dipped to black). */
+    /**
+     * While a glass card is up, the glass gets a fresh copy of the scene behind it a couple of times a second (not while
+     * dipped to black). Each copy reads a 4K video frame back from the decoder, so with no card up there is none.
+     */
     private final Runnable copyBackdrop = new Runnable() {
         @Override
         public void run() {
@@ -675,10 +679,18 @@ public class LiveSaverDream extends DreamService {
                 backdrop.capture(root, plainBackground);
                 return;
             }
-            if (player != null && dip.getAlpha() < 0.05f) backdrop.capture(screen, main);
+            if (glassShown()) copyScene();
             main.postDelayed(this, BACKDROP_MS);
         }
     };
+
+    private boolean glassShown() {
+        return card.getVisibility() == View.VISIBLE || songCard != null && songCard.getVisibility() == View.VISIBLE;
+    }
+
+    private void copyScene() {
+        if (player != null && dip.getAlpha() < 0.05f) backdrop.capture(screen, main);
+    }
 
     // ---- lifecycle and keys -------------------------------------------------------------------------------------
 
