@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # The live screensaver's scenes (LiveSaverDream): downloads each looping 4K video from where it is published, keeps it at
 # 3840x2160 without sound (re-encoding only a clip that needs it: one whose end does not meet its start gets its last
-# seconds faded into its first, a 10-bit one becomes 8-bit, which the TV's decoder plays, and a 25 fps one plays its
-# same frames at 30 fps, a fifth faster, since 25 fps judders on a 60 Hz panel), and writes it to the
+# seconds faded into its first, a 10-bit one becomes 8-bit, which the TV's decoder plays, and every one comes out at
+# 30 fps: 25 fps ones play their same frames a fifth faster, as 25 judders on a 60 Hz panel), and writes it to the
 # launcher's theme folder on the TV (saver/). The screensaver shows each whole, never cropped. The videos are not kept
 # in this repo: the Pixabay Content License allows free use, not passing the files on as they are.
 #
@@ -41,15 +41,18 @@ echo "$SCENES" | while IFS='|' read -r name url blend; do
   fi
   if [ ! -s "$dst" ]; then
     fps=$(ffprobe -v error -select_streams v:0 -show_entries stream=r_frame_rate -of csv=p=0 "$src" | tr -d '\r')
-    level=$(awk -v f="$fps" 'BEGIN { split(f, p, "/"); print (p[1] / (p[2] ? p[2] : 1) > 31) ? "5.2" : "5.1" }')
     bits=$(ffprobe -v error -select_streams v:0 -show_entries stream=pix_fmt -of csv=p=0 "$src" | tr -d '\r')
-    # 25 fps judders on a 60 Hz panel (frames held 2 and 3 refreshes in turn): the same frames at 30 fps hold 2 each.
+    # Every scene at 30 fps. 25 fps judders on a 60 Hz panel (frames held 2 and 3 refreshes in turn): the same frames
+    # at 30 fps hold 2 each, as do 29.97 fps ones at 30. A 60 fps one keeps every other frame. One rate for all keeps
+    # the TV's lip-sync delay still from scene to scene, which would otherwise cut the music that plays.
     retime=""
     rate=()
-    if [ "$fps" = "25/1" ]; then
-      retime=",setpts=PTS*25/30"
-      rate=(-r 30)
-    fi
+    case "$fps" in
+      25/1) retime=",setpts=PTS*25/30"; rate=(-r 30) ;;
+      30000/1001) retime=",setpts=PTS*1000/1001"; rate=(-r 30) ;;
+      60/1|60000/1001|50/1) retime=",fps=30"; rate=(-r 30) ;;
+    esac
+    level=5.1
     if [ -n "$blend" ]; then
       len=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$src" | tr -d '\r')
       at=$(awk -v d="$len" -v f="$blend" 'BEGIN { printf "%.3f", d - 2 * f - 0.05 }')
