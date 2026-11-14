@@ -59,6 +59,7 @@ final class NowPlaying {
     /** Silence shorter than this (a skip, a buffer) leaves the song up. */
     private static final long GONE_AFTER_MS = 4_000;
     private static final int ART_PX = 320;
+    private static final long RETRY_MS = 10_000;
 
     private final Context context;
     private final Listener listener;
@@ -91,15 +92,29 @@ final class NowPlaying {
         if (running || apps.isEmpty()) return;
         running = true;
         io = Executors.newSingleThreadExecutor();
-        sessions = context.getSystemService(MediaSessionManager.class);
-        ComponentName me = new ComponentName(context, WatchListener.class);
-        try {
-            sessions.addOnActiveSessionsChangedListener(changed, me, main);
-            attach(sessions.getActiveSessions(me));
-        } catch (SecurityException | NullPointerException e) {
-            sessions = null;   // the listener is not allowed: nothing to show
-        }
+        connect.run();
     }
+
+    /**
+     * Follows the media sessions, or tries again shortly while the listener is not allowed yet (just after the
+     * launcher was installed or updated), so the card shows up without leaving Home first.
+     */
+    private final Runnable connect = new Runnable() {
+        @Override
+        public void run() {
+            if (!running) return;
+            MediaSessionManager m = context.getSystemService(MediaSessionManager.class);
+            ComponentName me = new ComponentName(context, WatchListener.class);
+            try {
+                m.addOnActiveSessionsChangedListener(changed, me, main);
+                sessions = m;
+                attach(m.getActiveSessions(me));
+            } catch (SecurityException | NullPointerException e) {
+                sessions = null;
+                main.postDelayed(this, RETRY_MS);
+            }
+        }
+    };
 
     void stop() {
         if (!running) return;
