@@ -6,11 +6,13 @@ import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Outline;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
@@ -41,7 +43,9 @@ import java.util.function.Consumer;
  * The Continue watching row (continue_watching): a sideways row of cards under the dock, laid over the room
  * DockDecoration leaves below the dock's band, so the grid's positions and its navigation stay as they are. Each card
  * is a wide banner: the title's backdrop with its logo over it (a video's own picture for YouTube and the like), the
- * app's icon and how far in it is, with its name and the time left under it; Stremio's new episodes say so.
+ * app's icon and how far in it is, with its name and the time left under it; Stremio's new episodes say so. Beside
+ * the row's name, chips pick what it shows: All, Stremio, YouTube or Other (only those it has, and only when it has
+ * more than one); a chip filters the row as soon as it is focused.
  * OK opens it, holding OK offers to remove it. Pictures load off the main thread and are kept on disk.
  */
 final class ContinueRow {
@@ -61,6 +65,10 @@ final class ContinueRow {
     }
 
     static final int MAX_CARDS = 12;
+    /** The filter chips, in order. */
+    private static final int ALL = 0, STREMIO = 1, YOUTUBE = 2, OTHER = 3;
+    private static final int[] FILTER_LABELS = {R.string.continue_filter_all, R.string.continue_filter_stremio,
+            R.string.continue_filter_youtube, R.string.continue_filter_other};
     /** Banner-shaped cards, 16:9. */
     private static final float CARD_W_DP = 232f, CARD_H_DP = 130f, GAP_DP = 20f;
     private static final float FOCUS_SCALE = 1.08f;
@@ -82,7 +90,13 @@ final class ContinueRow {
     };
 
     final LinearLayout view;
+    private final LinearLayout headerRow;
     private final TextView header;
+    private final TextView[] chips = new TextView[FILTER_LABELS.length];
+    /** Everything the row has, the Connect card, and the chip that picks what of it shows. */
+    private final List<WatchHistory.Item> all = new ArrayList<>();
+    private boolean connect;
+    private int filter = ALL;
     /** setDisplayFonts: the cards use the display faces. */
     private boolean display;
     private final HorizontalScrollView scroller;
@@ -113,7 +127,20 @@ final class ContinueRow {
         header.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f);
         header.setLetterSpacing(0.14f);
         header.setTypeface(UiFont.get(activity, R.string.font_medium));
-        view.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        headerRow = new LinearLayout(activity);
+        headerRow.setOrientation(LinearLayout.HORIZONTAL);
+        headerRow.setGravity(Gravity.CENTER_VERTICAL);
+        headerRow.setClipChildren(false);
+        headerRow.setClipToPadding(false);
+        headerRow.setMinimumHeight(dp(30));
+        headerRow.addView(header, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        for (int i = 0; i < chips.length; i++) {
+            chips[i] = makeChip(i);
+            LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(28));
+            clp.leftMargin = dp(i == 0 ? 24 : 8);
+            headerRow.addView(chips[i], clp);
+        }
+        view.addView(headerRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         scroller = new HorizontalScrollView(activity);
         scroller.setHorizontalScrollBarEnabled(false);
@@ -138,13 +165,14 @@ final class ContinueRow {
         display = true;
         header.setTypeface(UiFont.get(activity, R.string.font_label_bold));
         header.setLetterSpacing(0.2f);
+        for (TextView chip : chips) chip.setTypeface(UiFont.get(activity, R.string.font_label_bold));
         signature = "";   // the cards are made again with the new faces at the next refresh
     }
 
     /** The row's height as laid out, for the room under the dock. */
     int heightPx() {
-        // header (about 18dp) + gap + zoom room + card + two text lines + their gaps
-        return dp(18 + 4 + 8 + CARD_H_DP + 10 + 20 + 17 + 4 + 14);
+        // header with its chips (30dp) + gap + zoom room + card + two text lines + their gaps
+        return dp(30 + 4 + 8 + CARD_H_DP + 10 + 20 + 17 + 4 + 14);
     }
 
     boolean shown() {
@@ -153,8 +181,8 @@ final class ContinueRow {
 
     /** Lines the row up with the dock's first tile (px from the row's parent's left edge). */
     void setStartInset(int px) {
-        if (header.getPaddingLeft() == px) return;
-        header.setPadding(px, 0, 0, 0);
+        if (headerRow.getPaddingLeft() == px) return;
+        headerRow.setPadding(px, 0, 0, 0);
         strip.setPadding(px, strip.getPaddingTop(), strip.getPaddingRight(), strip.getPaddingBottom());
     }
 
@@ -185,7 +213,10 @@ final class ContinueRow {
         }
         if (!sig.toString().equals(signature)) {
             signature = sig.toString();
-            rebuild(next, connect);
+            all.clear();
+            all.addAll(next);
+            this.connect = connect;
+            rebuild();
         }
         if (linked && !syncing && StremioSync.due(activity)) {
             syncing = true;
@@ -197,6 +228,118 @@ final class ContinueRow {
                 });
             });
         }
+    }
+
+    // ---- filter ---------------------------------------------------------------------------------------------------
+
+    /** Which chip an item belongs to: Stremio's list and the Stremio app, any YouTube app, or the rest. */
+    private static int kind(WatchHistory.Item it) {
+        if (WatchHistory.SOURCE_STREMIO.equals(it.source) || StremioSync.PACKAGE.equals(it.pkg)) return STREMIO;
+        if (it.pkg.contains("youtube")) return YOUTUBE;
+        return OTHER;
+    }
+
+    /** A chip: clear glass with a thin rim, a soft fill once picked, white with dark text while focused. */
+    private TextView makeChip(int index) {
+        TextView chip = text(12f, 0xE6FFFFFF, true);
+        chip.setText(FILTER_LABELS[index]);
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(dp(14), 0, dp(14), 0);
+        chip.setFocusable(true);
+        chip.setClickable(true);
+        float r = dp(14);
+        GradientDrawable focused = new GradientDrawable();
+        focused.setCornerRadius(r);
+        focused.setColor(0xF2FFFFFF);
+        GradientDrawable picked = new GradientDrawable();
+        picked.setCornerRadius(r);
+        picked.setColor(0x40FFFFFF);
+        picked.setStroke(Math.max(1, dp(1)), 0x66FFFFFF);
+        GradientDrawable plain = new GradientDrawable();
+        plain.setCornerRadius(r);
+        plain.setColor(0x0FFFFFFF);
+        plain.setStroke(Math.max(1, dp(1)), 0x33FFFFFF);
+        StateListDrawable bg = new StateListDrawable();
+        bg.addState(new int[]{android.R.attr.state_focused}, focused);
+        bg.addState(new int[]{android.R.attr.state_activated}, picked);
+        bg.addState(new int[0], plain);
+        bg.setEnterFadeDuration(120);
+        bg.setExitFadeDuration(160);
+        chip.setBackground(bg);
+        chip.setTextColor(new ColorStateList(new int[][]{{android.R.attr.state_focused}, {}},
+                new int[]{0xFF15151A, 0xE6FFFFFF}));
+        chip.setActivated(index == ALL);
+        chip.setOnFocusChangeListener((v, has) -> {
+            if (!has) return;
+            setFilter(index);
+            host.onContinueFocused(v, null);   // the row scrolls into view, the banner clears
+        });
+        chip.setOnClickListener(v -> setFilter(index));
+        chip.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    focusChip(index, -1);
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                    focusChip(index, 1);
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    host.onContinueUp(centerX(v));
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    if (!cards.isEmpty()) {
+                        scroller.scrollTo(0, 0);
+                        cards.get(0).requestFocus();
+                    }
+                    return true;
+                default:
+                    return false;
+            }
+        });
+        return chip;
+    }
+
+    /** The next shown chip to the left (-1) or right (1) of this one takes focus; at the end nothing moves. */
+    private void focusChip(int from, int step) {
+        for (int i = from + step; i >= 0 && i < chips.length; i += step) {
+            if (chips[i].getVisibility() == View.VISIBLE) {
+                chips[i].requestFocus();
+                return;
+            }
+        }
+    }
+
+    private boolean chipsShown() {
+        return chips[ALL].getVisibility() == View.VISIBLE;
+    }
+
+    private void setFilter(int index) {
+        if (filter == index) return;
+        filter = index;
+        for (int i = 0; i < chips.length; i++) chips[i].setActivated(i == index);
+        scroller.scrollTo(0, 0);
+        rebuild();
+    }
+
+    /** Shows the chips the row has items for (none when it has only one kind), and the cards the picked one shows. */
+    private void rebuild() {
+        boolean[] has = new boolean[chips.length];
+        for (WatchHistory.Item it : all) has[kind(it)] = true;
+        if (connect) has[STREMIO] = true;
+        int kinds = (has[STREMIO] ? 1 : 0) + (has[YOUTUBE] ? 1 : 0) + (has[OTHER] ? 1 : 0);
+        boolean showChips = kinds > 1;
+        chips[ALL].setVisibility(showChips ? View.VISIBLE : View.GONE);
+        for (int i = 1; i < chips.length; i++) chips[i].setVisibility(showChips && has[i] ? View.VISIBLE : View.GONE);
+        if (filter != ALL && (!showChips || !has[filter])) {
+            boolean refocus = chips[filter].hasFocus();
+            filter = ALL;
+            for (int i = 0; i < chips.length; i++) chips[i].setActivated(i == ALL);
+            if (refocus && showChips) chips[ALL].requestFocus();
+        }
+        List<WatchHistory.Item> shownItems = new ArrayList<>();
+        for (WatchHistory.Item it : all) if (filter == ALL || kind(it) == filter) shownItems.add(it);
+        rebuild(shownItems, connect && (filter == ALL || filter == STREMIO));
     }
 
     private void rebuild(List<WatchHistory.Item> next, boolean connect) {
@@ -389,7 +532,8 @@ final class ContinueRow {
             int at = cards.indexOf(v);
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_UP:
-                    host.onContinueUp(centerX(v));
+                    if (chipsShown()) chips[filter].requestFocus();
+                    else host.onContinueUp(centerX(v));
                     return true;
                 case KeyEvent.KEYCODE_DPAD_DOWN:
                     host.onContinueDown(centerX(v));

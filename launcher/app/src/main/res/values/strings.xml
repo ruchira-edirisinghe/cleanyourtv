@@ -182,6 +182,11 @@
     <string name="saver_new_episode">New episode out</string>
     <string name="saver_ok_hint">Press OK to jump back in</string>
     <string name="saver_percent">%1$d%%</string>
+    <!-- The Continue watching row's filter chips. -->
+    <string name="continue_filter_all">All</string>
+    <string name="continue_filter_stremio" translatable="false">Stremio</string>
+    <string name="continue_filter_youtube" translatable="false">YouTube</string>
+    <string name="continue_filter_other">Other</string>
     <!-- now_playing: the kicker over the song that plays; the screensaver's wider card names the app. -->
     <string name="now_playing">Now playing</string>
     <string name="now_playing_on">Now playing on %1$s</string>
