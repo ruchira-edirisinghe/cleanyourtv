@@ -115,7 +115,14 @@ final class ContinueRow {
         this.cardW = dp(CARD_W_DP);
         this.cardH = dp(CARD_H_DP);
 
-        view = new LinearLayout(activity);
+        view = new LinearLayout(activity) {
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                // As tall as all its lines: several lines are taller than the screen under the dock, and a height
+                // capped at its parent's would cut the lines off once Home scrolls down to them.
+                super.onMeasure(widthMeasureSpec, MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED));
+            }
+        };
         view.setOrientation(LinearLayout.VERTICAL);
         view.setClipChildren(false);
         view.setClipToPadding(false);
