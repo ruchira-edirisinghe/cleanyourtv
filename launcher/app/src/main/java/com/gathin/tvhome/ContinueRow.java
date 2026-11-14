@@ -24,7 +24,6 @@ import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
 import android.view.animation.DecelerateInterpolator;
 import android.widget.FrameLayout;
-import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -40,8 +39,8 @@ import java.util.concurrent.Executors;
 import java.util.function.Consumer;
 
 /**
- * The Continue watching row (continue_watching): a sideways row of cards under the dock, laid over the room
- * DockDecoration leaves below the dock's band, so the grid's positions and its navigation stay as they are. Each card
+ * The Continue watching row (continue_watching): cards under the dock, four to a line and as many lines as it takes
+ * (Home scrolls down to them), laid over the room DockDecoration leaves below the dock's band, so the grid's positions and its navigation stay as they are. Each card
  * is a wide banner: the title's backdrop with its logo over it (a video's own picture for YouTube and the like), the
  * app's icon and how far in it is, with its name and the time left under it; Stremio's new episodes say so. Beside
  * the row's name, chips pick what it shows: All, Stremio, YouTube or Other (only those it has, and only when it has
@@ -69,8 +68,9 @@ final class ContinueRow {
     private static final int ALL = 0, STREMIO = 1, YOUTUBE = 2, OTHER = 3;
     private static final int[] FILTER_LABELS = {R.string.continue_filter_all, R.string.continue_filter_stremio,
             R.string.continue_filter_youtube, R.string.continue_filter_other};
-    /** Banner-shaped cards, 16:9. */
-    private static final float CARD_W_DP = 232f, CARD_H_DP = 130f, GAP_DP = 20f;
+    /** Banner-shaped cards, 16:9, four to a line as wide as the dock's tiles reach, with this much between lines. */
+    private static final float CARD_W_DP = 186f, CARD_H_DP = 105f, GAP_DP = 20f, LINE_GAP_DP = 18f;
+    private static final int PER_LINE = 4;
     private static final float FOCUS_SCALE = 1.08f;
     private static final int STREMIO_PURPLE = 0xFF7B5BF5;
 
@@ -99,7 +99,7 @@ final class ContinueRow {
     private int filter = ALL;
     /** setDisplayFonts: the cards use the display faces. */
     private boolean display;
-    private final HorizontalScrollView scroller;
+    /** The lines of cards, one under another. */
     private final LinearLayout strip;
     private final List<WatchHistory.Item> items = new ArrayList<>();
     private final List<View> cards = new ArrayList<>();
@@ -142,22 +142,15 @@ final class ContinueRow {
         }
         view.addView(headerRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        scroller = new HorizontalScrollView(activity);
-        scroller.setHorizontalScrollBarEnabled(false);
-        scroller.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        scroller.setClipChildren(false);
-        scroller.setClipToPadding(false);
-        scroller.setSmoothScrollingEnabled(true);
         strip = new LinearLayout(activity);
-        strip.setOrientation(LinearLayout.HORIZONTAL);
+        strip.setOrientation(LinearLayout.VERTICAL);
         strip.setClipChildren(false);
         strip.setClipToPadding(false);
         // Room above and below for the focus zoom, which a scroll view would otherwise cut off.
         strip.setPadding(0, dp(8), dp(40), dp(4));
-        scroller.addView(strip, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.topMargin = dp(4);
-        view.addView(scroller, lp);
+        view.addView(strip, lp);
     }
 
     /** liquid_glass: Fraunces for the titles and Space Grotesk for the header and the lines under them. */
@@ -171,8 +164,10 @@ final class ContinueRow {
 
     /** The row's height as laid out, for the room under the dock. */
     int heightPx() {
-        // header with its chips (30dp) + gap + zoom room + card + two text lines + their gaps
-        return dp(30 + 4 + 8 + CARD_H_DP + 10 + 20 + 17 + 4 + 14);
+        int lines = Math.max(1, (cards.size() + PER_LINE - 1) / PER_LINE);
+        // header with its chips (30dp) + gap + zoom room, then each line: card + two text lines + their gaps
+        float line = CARD_H_DP + 10 + 20 + 17;
+        return dp(30 + 4 + 8 + lines * line + (lines - 1) * LINE_GAP_DP + 4 + 24);
     }
 
     boolean shown() {
@@ -288,10 +283,7 @@ final class ContinueRow {
                     host.onContinueUp(centerX(v));
                     return true;
                 case KeyEvent.KEYCODE_DPAD_DOWN:
-                    if (!cards.isEmpty()) {
-                        scroller.scrollTo(0, 0);
-                        cards.get(0).requestFocus();
-                    }
+                    if (!cards.isEmpty()) focusNearest(centerX(v));
                     return true;
                 default:
                     return false;
@@ -318,7 +310,6 @@ final class ContinueRow {
         if (filter == index) return;
         filter = index;
         for (int i = 0; i < chips.length; i++) chips[i].setActivated(i == index);
-        scroller.scrollTo(0, 0);
         rebuild();
     }
 
@@ -352,13 +343,17 @@ final class ContinueRow {
                 focusedKey = i < items.size() ? items.get(i).source + items.get(i).key : "connect";
             }
         }
+        int linesBefore = (cards.size() + PER_LINE - 1) / PER_LINE;
         items.clear();
         items.addAll(next);
         cards.clear();
         strip.removeAllViews();
         for (int i = 0; i < items.size(); i++) addCard(items.get(i), i);
         if (connect) addCard(null, items.size());
+        boolean wasShown = shown;
         applyShown();
+        // Another number of lines: the room under the dock changes too.
+        if (shown && wasShown && (cards.size() + PER_LINE - 1) / PER_LINE != linesBefore) host.onContinueShownChanged(true);
         if (focusedIndex >= 0 && shown) {
             int target = Math.min(focusedIndex, cards.size() - 1);
             for (int i = 0; i < items.size(); i++) {
@@ -500,9 +495,22 @@ final class ContinueRow {
         title.setAlpha(0.8f);
         meta.setAlpha(0.8f);
 
+        LinearLayout line;
+        if (index % PER_LINE == 0) {
+            line = new LinearLayout(activity);
+            line.setOrientation(LinearLayout.HORIZONTAL);
+            line.setClipChildren(false);
+            line.setClipToPadding(false);
+            LinearLayout.LayoutParams lineLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT);
+            if (index > 0) lineLp.topMargin = dp(LINE_GAP_DP);
+            strip.addView(line, lineLp);
+        } else {
+            line = (LinearLayout) strip.getChildAt(strip.getChildCount() - 1);
+        }
         LinearLayout.LayoutParams columnLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        if (index > 0) columnLp.leftMargin = dp(GAP_DP);
-        strip.addView(column, columnLp);
+        if (index % PER_LINE > 0) columnLp.leftMargin = dp(GAP_DP);
+        line.addView(column, columnLp);
         cards.add(card);
 
         GradientDrawable ring = new GradientDrawable();
@@ -532,16 +540,24 @@ final class ContinueRow {
             int at = cards.indexOf(v);
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_UP:
-                    if (chipsShown()) chips[filter].requestFocus();
+                    if (at >= PER_LINE) cards.get(at - PER_LINE).requestFocus();
+                    else if (chipsShown()) chips[filter].requestFocus();
                     else host.onContinueUp(centerX(v));
                     return true;
                 case KeyEvent.KEYCODE_DPAD_DOWN:
-                    host.onContinueDown(centerX(v));
+                    // The card under this one, or the last card when the line below is shorter; past the last line, on.
+                    if (at / PER_LINE < (cards.size() - 1) / PER_LINE) {
+                        cards.get(Math.min(at + PER_LINE, cards.size() - 1)).requestFocus();
+                    } else {
+                        host.onContinueDown(centerX(v));
+                    }
                     return true;
                 case KeyEvent.KEYCODE_DPAD_LEFT:
-                    return at <= 0;
+                    if (at % PER_LINE > 0) cards.get(at - 1).requestFocus();
+                    return true;
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    return at >= cards.size() - 1;
+                    if (at % PER_LINE < PER_LINE - 1 && at + 1 < cards.size()) cards.get(at + 1).requestFocus();
+                    return true;
                 case KeyEvent.KEYCODE_MENU:
                     if (event.getRepeatCount() == 0) showMenu(item);
                     return true;
@@ -598,11 +614,12 @@ final class ContinueRow {
         return at[0] + v.getWidth() / 2f;
     }
 
+    /** Focuses the card of the first line nearest this screen x. */
     boolean focusNearest(float screenX) {
         if (cards.isEmpty()) return false;
         View best = null;
         float bestD = Float.MAX_VALUE;
-        for (View c : cards) {
+        for (View c : cards.subList(0, Math.min(PER_LINE, cards.size()))) {
             float d = Math.abs(centerX(c) - screenX);
             if (d < bestD) {
                 bestD = d;

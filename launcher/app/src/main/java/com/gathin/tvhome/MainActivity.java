@@ -2531,11 +2531,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     // ---- continue watching ------------------------------------------------------------------------
 
+    /** Where the Continue watching row stands with the grid at the top, in the grid's coordinates (NaN until seen). */
+    private float continueRest = Float.NaN;
+
     private void setUpContinueRow() {
         continueRow = new ContinueRow(this, new ContinueRow.Host() {
             @Override
             public void onContinueFocused(View card, WatchHistory.Item item) {
-                showContinue(item);
+                showContinue(item, card);
             }
 
             @Override
@@ -2582,15 +2585,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         float top;
         RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
+        int offset = grid.computeVerticalScrollOffset();
         if (dock != null) {
             View item = dock.itemView;
             top = item.getBottom() + item.getTranslationY() + 12 * density;
             View card = item.findViewById(R.id.card);
             if (card != null) continueRow.setStartInset(item.getLeft() + card.getLeft());
+            continueRest = top + offset;
         } else {
-            // The dock scrolled away: the grid's first row is just under the room.
+            // The dock scrolled away: the grid's first row is just under the room. With no apps under the dock (its
+            // tall Continue watching lines scrolled the dock off), the row's resting place moves up by the scroll.
             RecyclerView.ViewHolder first = adapter.appCount() > COLUMNS ? grid.findViewHolderForAdapterPosition(COLUMNS) : null;
-            top = first == null ? -100000f : first.itemView.getTop() - continueRow.heightPx();
+            top = first != null ? first.itemView.getTop() - continueRow.heightPx()
+                    : !Float.isNaN(continueRest) ? continueRest - offset : -100000f;
         }
         top += grid.getTop();
         if (continueRow.view.getTranslationY() != top) continueRow.view.setTranslationY(top);
@@ -2832,7 +2839,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * A Continue watching card is focused: the dock's highlight, name and glow step back, the row scrolls fully into
      * view, and the top banner shows the item's cover from the web (CoverArt) once it is loaded.
      */
-    private void showContinue(WatchHistory.Item item) {
+    private void showContinue(WatchHistory.Item item, View focused) {
         hideGlass();
         hideGridGlow();
         stopAmbientAnimation();
@@ -2847,9 +2854,20 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             hero.setAlpha(0f);
             ambient.setAlpha(0f);
         }
-        float bottom = continueRow.view.getTranslationY() + continueRow.view.getHeight();
-        int dy = (int) (bottom - (grid.getTop() + grid.getHeight() - 16 * density));
-        if (dy > 0) {
+        // The focused card (with its name and line under it, or a chip with the line of cards under it) scrolls into
+        // view; going back up a line scrolls back, the row's top line all the way to the dock.
+        int[] at = new int[2], base = new int[2];
+        focused.getLocationInWindow(at);
+        grid.getLocationInWindow(base);
+        float scale = focused.getScaleY();
+        float shownTop = at[1] - base[1] - focused.getHeight() * (scale - 1f) / 2f;
+        float shownBottom = shownTop + focused.getHeight() + (item == null && focused.getHeight() < 60 * density
+                ? 180 * density : 64 * density);
+        int dy = 0;
+        if (shownBottom > grid.getHeight() - 16 * density) dy = (int) (shownBottom - (grid.getHeight() - 16 * density));
+        else if (shownTop < 60 * density) dy = (int) (shownTop - 60 * density);
+        if (dy < 0) dy = Math.max(dy, -grid.computeVerticalScrollOffset());
+        if (dy != 0) {
             if (motion) grid.smoothScrollBy(0, dy);
             else grid.scrollBy(0, dy);
         }
