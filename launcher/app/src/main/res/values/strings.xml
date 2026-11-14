@@ -182,9 +182,8 @@
     <string name="saver_new_episode">New episode out</string>
     <string name="saver_ok_hint">Press OK to jump back in</string>
     <string name="saver_percent">%1$d%%</string>
-    <!-- now_playing: the kicker over the song that plays, with the app's name. -->
+    <!-- now_playing: the kicker over the song that plays. -->
     <string name="now_playing">Now playing</string>
-    <string name="now_playing_on">Now playing on %1$s</string>
     <string name="weather_degrees">%1$d°</string>
     <string name="weather_clear">Clear</string>
     <string name="weather_partly_cloudy">Partly cloudy</string>
