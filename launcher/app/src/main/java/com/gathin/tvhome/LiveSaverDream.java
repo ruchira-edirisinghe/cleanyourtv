@@ -49,12 +49,15 @@ import java.util.concurrent.Executors;
  * panel behind them; now and then a glass card with the poster
  * of something left part-watched or a new episode (WatchHistory) rises in a bottom corner, and OK opens it. With
  * now_playing, the song a music app plays stands in the bottom right corner on the same glass (NowPlayingCard), still,
- * for as long as it plays. Any other key ends the screensaver. Pick it with `settings put secure screensaver_components com.gathin.tvhome/.LiveSaverDream`.
+ * for as long as it plays, and the TV does not go to sleep while it does (SleepHold). Any other key ends the
+ * screensaver. Pick it with `settings put secure screensaver_components com.gathin.tvhome/.LiveSaverDream`.
  */
 public class LiveSaverDream extends DreamService {
     private static final long CLIP_MS = 75_000, DIP_OUT_MS = 650, DIP_IN_MS = 900;
     private static final long CARD_FIRST_MS = 7_000, CARD_SHOW_MS = 11_000, CARD_GAP_MS = 20_000;
     private static final long BACKDROP_MS = 120, MINUTE_MS = 60_000;
+    /** After the music stops, the TV keeps awake this long before its own sleep timeout counts again. */
+    private static final long AWAKE_AFTER_SONG_MS = 120_000;
     private static final int CYAN = 0xFF7FE7FF, VIOLET = 0xFFB18CFF, GOLD = 0xFFFFD27A;
     /** The poster card's size and its poster's, in dp: always the same, whatever it shows. */
     private static final int CARD_W = 452, CARD_H = 180, POSTER_W = 101, POSTER_H = 152;
@@ -435,9 +438,15 @@ public class LiveSaverDream extends DreamService {
         if (!running) return;
         boolean started = track != null && !songShown();
         songCard.setTrack(track);
+        // Music playing is not idle: the TV stays awake on the screensaver while it plays, and a while after.
+        main.removeCallbacks(releaseSleep);
+        if (track != null) SleepHold.hold(this);
+        else main.postDelayed(releaseSleep, AWAKE_AFTER_SONG_MS);
         // Music is no show: a poster card up when a song starts goes away, and no other comes while it plays.
         if (started && card.getVisibility() == View.VISIBLE) main.post(hideCard);
     }
+
+    private final Runnable releaseSleep = () -> SleepHold.release(this);
 
     private boolean songShown() {
         return songCard != null && songCard.hasSong();
@@ -709,6 +718,7 @@ public class LiveSaverDream extends DreamService {
         main.removeCallbacksAndMessages(null);
         releasePlayer();
         if (nowPlaying != null) nowPlaying.stop();
+        SleepHold.release(this);   // awake again: the TV's own timeout counts from this key
     }
 
     @Override
