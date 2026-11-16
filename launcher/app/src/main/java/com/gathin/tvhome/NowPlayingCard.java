@@ -42,6 +42,7 @@ final class NowPlayingCard extends FrameLayout {
 
     private final float density;
     private final boolean upright;
+    private final GlassBackdrop backdrop;
     private final ImageView art;
     private final TextView kicker, title, artist, elapsed, length;
     private final View fill;
@@ -72,6 +73,7 @@ final class NowPlayingCard extends FrameLayout {
     NowPlayingCard(Context context, GlassBackdrop backdrop, boolean upright) {
         super(context);
         this.upright = upright;
+        this.backdrop = backdrop;
         density = context.getResources().getDisplayMetrics().density;
         setBackground(new GlassDrawable(backdrop, GlassDrawable.SMOKE, dp(22), density));
         setClipToOutline(true);
@@ -220,10 +222,19 @@ final class NowPlayingCard extends FrameLayout {
         if (!upright || sizePx <= 0) return;
         if (!square) {
             square = true;
+            // The cover and the song's lines over it, in a rounded box set a few dp into the card's glass.
+            FrameLayout box = new FrameLayout(getContext());
+            box.setClipToOutline(true);
+            box.setOutlineProvider(rounded(15));
             column.removeView(art);
             art.setOutlineProvider(null);
             art.setClipToOutline(false);
-            addView(art, 0, new FrameLayout.LayoutParams(-1, -1));
+            box.addView(art, new FrameLayout.LayoutParams(-1, -1));
+            removeView(column);
+            box.addView(column);
+            FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(-1, -1);
+            bl.setMargins(dp(7), dp(7), dp(7), dp(7));
+            addView(box, 0, bl);
             GradientDrawable shade = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                     new int[]{0x00000000, 0x99000000, 0xD9000000, 0xF2000000});
             column.setBackground(shade);
@@ -234,7 +245,7 @@ final class NowPlayingCard extends FrameLayout {
             topl.topMargin = 0;
             FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
             column.setLayoutParams(cl);
-            setBackground(null);   // the cover covers the glass anyway: no need to blur under it
+            setBackground(new GlassDrawable(backdrop, GlassDrawable.BRIGHT, dp(22), density));
         }
         ViewGroup.LayoutParams lp = getLayoutParams();
         if (lp != null && (lp.width != sizePx || lp.height != sizePx)) {
