@@ -3001,6 +3001,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         android.graphics.Typeface date = UiFont.get(this, R.string.font_medium);
         ImmersiveClock clock = new ImmersiveClock(this, date, time, 155f, clockFormat);
         immersiveClock = clock;
+        // Plain blending: the overlay and screen modes make the GPU read the picture back under the digits on
+        // every frame, which the TV's GPU feels.
+        clock.overVideo();
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
         lp.topMargin = Math.round(64 * density);
