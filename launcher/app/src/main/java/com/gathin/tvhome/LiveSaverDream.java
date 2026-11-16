@@ -185,7 +185,7 @@ public class LiveSaverDream extends DreamService {
         island.setAlpha(0f);
 
         clock = new ImmersiveClock(this, UiFont.get(this, R.string.font_medium), UiFont.get(this, R.string.font_light),
-                172f, config.clockFormat);
+                155f, config.clockFormat);
         clock.overVideo();
         island.addView(clock, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
