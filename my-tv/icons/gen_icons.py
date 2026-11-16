@@ -27,6 +27,12 @@ ICONS = {
     "com.tcl.guard": "A glossy shield with a white check mark and a soft blue glow, security protection, on a royal blue to deep indigo gradient.",
     "com.android.tv.settings": "A glossy brushed chrome gear cog, on a dark teal to graphite gradient.",
     "com.tcl.partnercustomizer": "A glossy stack of three tilted channel cards with a white play button on the front card, on a magenta to deep crimson gradient.",
+    "com.stremio.one": "A glossy 3D violet diamond-shaped tile with a white play triangle cut into its centre, the Stremio mark, glowing softly, on a deep indigo to electric purple gradient.",
+    "com.google.android.youtube.tv": "A glossy 3D red rounded play button with a white play triangle, the YouTube mark, on a deep black to dark crimson gradient.",
+    "input.playstation": "A glossy white and black games console controller seen from the front at a slight angle, its light bar glowing soft blue, with tiny floating triangle, circle, cross and square symbols, on a royal blue to deep navy gradient.",
+    "com.spotify.tv.android": "A glossy 3D vivid green circle with three curved black sound-wave bars, the Spotify mark, on a deep black to dark green gradient.",
+    "tv.twitch.android.app": "A glossy 3D purple speech-bubble shaped screen with two vertical eye slits, the Twitch glitch mark, on a vivid violet to deep purple gradient.",
+    "com.tcl.browser": "A glossy 3D translucent glass globe with luminous meridian lines and a white compass arrow, web browsing, on an azure to deep blue gradient.",
     "com.tcl.tv": "A glossy modern flat-screen television on a slim stand with a broadcast antenna signal icon glowing on its screen, live TV, on a vivid orange-red to dark maroon gradient.",
 }
 
