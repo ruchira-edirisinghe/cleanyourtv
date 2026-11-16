@@ -168,6 +168,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** config.xml cinematic_white_focus: the cinematic shelf keeps the white highlight. */
     private boolean cinematicWhiteFocus;
     private ImageView heroArt;
+    /** immersive_home: the scrim, painted into the wallpaper and the full-screen pictures instead of a shade view. */
+    private ShadeBaker shadeBaker;
     /** Under heroArt while one picture changes to the next: holds the old one, so the new one fades in over it. */
     private ImageView heroArtBack;
     /** config.xml cinematic_dots: false leaves the dock position dots out of the cinematic shelf. */
@@ -573,7 +575,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // black under it is a second full-screen fill on every frame for nothing. The starting window still uses
         // the theme's background, so launch looks the same.
         getWindow().setBackgroundDrawable(null);
-        wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
+        cinematic = cfg.cinematicHome;
+        heroBanners = cinematic && cfg.heroBanners;
+        immersive = cfg.immersiveHome && cfg.dockRow && !cfg.singleRow;
+        // immersive_home: the scrim is painted into the pictures, not drawn over them on every frame (ShadeBaker).
+        if (cinematic && immersive && cfg.cinematicScrim > 0) {
+            shadeBaker = new ShadeBaker(((BitmapDrawable) scrimDrawable()).getBitmap(), cfg.cinematicScrim * 255 / 100);
+        }
+        wallpaperPlayer = new WallpaperPlayer(this, root, cfg, shadeBaker);
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
         glass = findViewById(R.id.glass);
@@ -596,13 +605,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroDots = findViewById(R.id.heroDots);
         heroArt = findViewById(R.id.heroArt);
         setUpHeroArtBack();
-        cinematic = cfg.cinematicHome;
         glowStyle = cfg.glowStyle;
         heroDotsShown = cfg.cinematicDots;
         cinematicWhiteFocus = cfg.cinematicWhiteFocus;
         heroArtAlpha = cfg.cinematicArt / 100f;
-        heroBanners = cinematic && cfg.heroBanners;
-        immersive = cfg.immersiveHome && cfg.dockRow && !cfg.singleRow;
         if (cinematic) setUpCinematicShelf(cfg.cinematicScrim);
         if (cfg.gridGlow && cfg.dockRow && !cfg.singleRow) setUpGridGlow();
         // dock_title false: the name above the dock (and the cinematic lines under it) never shows; the glow
@@ -2348,6 +2354,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // One stretched bitmap: apply its alpha while drawing instead of through an offscreen buffer.
         heroArt.forceHasOverlappingRendering(false);
         if (scrimPercent <= 0) return;   // cinematic_scrim 0: no scrim at all
+        if (shadeBaker != null) return;   // painted into the pictures instead
         View scrim = findViewById(R.id.heroScrim);
         Drawable shade = scrimDrawable();
         // On the bitmap's paint, not the view: a view's alpha would draw the full screen through an offscreen buffer.
@@ -2417,6 +2424,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             art = heroArtCache.get(key);
             if (art == null) {
                 art = HeroArt.from(adapter.artworkAt(position));
+                if (art != null && shadeBaker != null) art = shadeBaker.bake(art);
                 if (art != null) heroArtCache.put(key, art);
             }
         }
@@ -2506,7 +2514,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         final int h = root.getHeight() > 0 ? root.getHeight() : getResources().getDisplayMetrics().heightPixels;
         heroBannerLoader.execute(() -> {
             File f = HeroBanners.file(app, pkg);
-            final Bitmap b = f == null ? null : HeroBanners.decode(f, w, h);
+            Bitmap decoded = f == null ? null : HeroBanners.decode(f, w, h);
+            final Bitmap b = shadeBaker != null ? shadeBaker.bake(decoded) : decoded;
             runOnUiThread(() -> {
                 heroBannerLoading.remove(pkg);
                 if (isDestroyed()) return;
@@ -2739,6 +2748,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         });
         if (immersive) continueRow.setSideways();
+        continueRow.setCoverShade(shadeBaker);
         ViewGroup wrapper = (ViewGroup) grid.getParent();
         wrapper.addView(continueRow.view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));

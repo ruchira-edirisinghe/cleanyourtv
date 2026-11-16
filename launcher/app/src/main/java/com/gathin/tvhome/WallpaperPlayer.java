@@ -46,6 +46,8 @@ final class WallpaperPlayer {
     private final int height;
     /** wallpaper_dim as an ARGB black, painted into each picture once instead of a full-screen shade view. */
     private final int dimColor;
+    /** The immersive Home's scrim, painted into each picture like the dim; null for none. */
+    private final ShadeBaker shade;
     /** The picture on screen, released once the next one has been drawn. */
     private Bitmap current;
     private boolean active;
@@ -65,6 +67,12 @@ final class WallpaperPlayer {
     private int[] sun;
 
     WallpaperPlayer(Context context, FrameLayout root, Config config) {
+        this(context, root, config, null);
+    }
+
+    /** @param shade painted into each picture as it is decoded (the immersive Home's scrim), or null. */
+    WallpaperPlayer(Context context, FrameLayout root, Config config, ShadeBaker shade) {
+        this.shade = shade;
         this.root = root;
         backgroundColor = config.backgroundColor;
         files = new ArrayList<>(config.wallpapers);
@@ -302,10 +310,11 @@ final class WallpaperPlayer {
                 options.inTargetDensity = scale[1];
             }
             options.inPreferredConfig = bitmapConfig;
-            options.inMutable = dimColor != 0;
+            options.inMutable = dimColor != 0 || shade != null;
             Bitmap decoded = BitmapFactory.decodeFile(file.getPath(), options);
             if (decoded == null) return null;
             if (dimColor != 0) new Canvas(decoded).drawColor(dimColor);
+            if (shade != null) shade.draw(new Canvas(decoded), decoded.getWidth(), decoded.getHeight());
             // One copy in GPU memory instead of a software bitmap plus its texture; the decode stays off the UI
             // thread for rotations, and Home's return no longer uploads 4-8 MB to the GPU.
             Bitmap gpu = decoded.copy(Bitmap.Config.HARDWARE, false);

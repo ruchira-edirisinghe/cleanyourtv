@@ -786,6 +786,13 @@ final class ContinueRow {
     }
 
     /** The cover for the top banner, at the screen's width: from memory, the disk or the web. */
+    /** The immersive Home's scrim, painted into each cover as it is decoded (ShadeBaker); null for none. */
+    private ShadeBaker coverShade;
+
+    void setCoverShade(ShadeBaker shade) {
+        coverShade = shade;
+    }
+
     void cover(WatchHistory.Item item, int width, Consumer<Bitmap> done) {
         String src = !item.cover.isEmpty() ? item.cover : item.art;
         if (src.isEmpty()) {
@@ -798,7 +805,8 @@ final class ContinueRow {
             return;
         }
         pictures.execute(() -> {
-            Bitmap b = picture(activity, src, width);
+            Bitmap decoded = picture(activity, src, width);
+            Bitmap b = coverShade != null ? coverShade.bake(decoded) : decoded;
             main.post(() -> {
                 if (b != null) covers.put(src, b);
                 done.accept(b);
