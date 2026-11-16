@@ -3235,8 +3235,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         grid.getLocationInWindow(spot);
         float cardRight = spot[0] - origin[0] + grid.getWidth() - Math.max(0, baseGridPadRight);
-        nowPlayingCard.fitHeight(Math.round(bandBottom - cardTop), songCardWidth());
-        float cardX = cardRight - nowPlayingCard.targetWidth();
+        // A square as tall as the space, the cover filling it; at the right, so what is left of the card's
+        // column widens the gap to the dock and Continue watching.
+        int size = Math.min(Math.round(bandBottom - cardTop), songCardWidth());
+        nowPlayingCard.fitSquare(size);
+        float cardX = cardRight - size;
         if (nowPlayingCard.getTranslationY() != cardTop) nowPlayingCard.setTranslationY(cardTop);
         if (nowPlayingCard.getTranslationX() != cardX) nowPlayingCard.setTranslationX(cardX);
     }

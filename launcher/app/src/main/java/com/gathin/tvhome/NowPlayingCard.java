@@ -49,6 +49,10 @@ final class NowPlayingCard extends FrameLayout {
     private NowPlaying.Track track;
     /** The card's height without the cover, once laid out (0 before). */
     private int chrome;
+    /** The upright card's column (the cover, then the song's lines); fitSquare lays it over the cover. */
+    private LinearLayout column;
+    /** fitSquare: the cover fills the whole square card and the song's lines sit over its lower part. */
+    private boolean square;
     /** A song to show, and whether its place lets it show now (Home hides it once the apps scroll). */
     private boolean hasSong, allowed = true, visibleNow;
 
@@ -140,7 +144,7 @@ final class NowPlayingCard extends FrameLayout {
         LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(-1, -2);
         al.topMargin = dp(2);
         if (upright) {
-            LinearLayout column = new LinearLayout(context);
+            column = new LinearLayout(context);
             column.setOrientation(LinearLayout.VERTICAL);
             column.setPadding(dp(PAD), dp(PAD), dp(PAD), dp(PAD));
             column.addView(art, new LinearLayout.LayoutParams(dp(ART), dp(ART)));
@@ -206,6 +210,38 @@ final class NowPlayingCard extends FrameLayout {
         }
     }
 
+    /**
+     * Home's immersive layout: the card is a square this big and the cover fills all of it, uncropped; the kicker, the
+     * song's name, the artist and the time bar sit over the cover's lower part on a dark shade that keeps them readable.
+     */
+    void fitSquare(int sizePx) {
+        if (!upright || sizePx <= 0) return;
+        if (!square) {
+            square = true;
+            column.removeView(art);
+            art.setOutlineProvider(null);
+            art.setClipToOutline(false);
+            addView(art, 0, new FrameLayout.LayoutParams(-1, -1));
+            GradientDrawable shade = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{0x00000000, 0x99000000, 0xD9000000, 0xF2000000});
+            column.setBackground(shade);
+            column.setPadding(dp(16), dp(64), dp(16), dp(14));
+            title.setMaxLines(2);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+            LinearLayout.MarginLayoutParams topl = (LinearLayout.MarginLayoutParams) column.getChildAt(0).getLayoutParams();
+            topl.topMargin = 0;
+            FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+            column.setLayoutParams(cl);
+            setBackground(null);   // the cover covers the glass anyway: no need to blur under it
+        }
+        ViewGroup.LayoutParams lp = getLayoutParams();
+        if (lp != null && (lp.width != sizePx || lp.height != sizePx)) {
+            lp.width = sizePx;
+            lp.height = sizePx;
+            setLayoutParams(lp);
+        }
+    }
+
     /** The card's width now, in px. */
     int targetWidth() {
         ViewGroup.LayoutParams lp = getLayoutParams();
@@ -215,7 +251,7 @@ final class NowPlayingCard extends FrameLayout {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        if (h > 0) chrome = h - art.getLayoutParams().height;
+        if (h > 0 && !square) chrome = h - art.getLayoutParams().height;
     }
 
     /** The playing app's package, or null with no song. */
