@@ -72,7 +72,7 @@ final class ContinueRow {
     private static final float CARD_W_DP = 186f, CARD_H_DP = 105f, GAP_DP = 20f, LINE_GAP_DP = 18f;
     private static final int PER_LINE = 4;
     /** Sideways (immersive_home): one line of compact cards, the picture at the left and the lines beside it. */
-    private static final float COMPACT_W_DP = 292f, COMPACT_H_DP = 76f, COMPACT_GAP_DP = 16f, COMPACT_SCALE = 1.05f;
+    private static final float COMPACT_W_DP = 340f, COMPACT_H_DP = 90f, COMPACT_GAP_DP = 18f, COMPACT_SCALE = 1.05f;
     private static final float FOCUS_SCALE = 1.08f;
     private static final int STREMIO_PURPLE = 0xFF7B5BF5;
 
@@ -107,6 +107,10 @@ final class ContinueRow {
     private int perLine = PER_LINE;
     private boolean sideways;
     private android.widget.HorizontalScrollView scroller;
+    /** Sideways: a focused card is scrolled to stay this far in from both screen edges (the dock's inset). */
+    private int keepIn, keepInEnd;
+    /** Sideways: the soft fade at the row's end; a focused card always stops clear of it. */
+    static final float FADE_DP = 64f;
     private final List<WatchHistory.Item> items = new ArrayList<>();
     private final List<View> cards = new ArrayList<>();
     private String signature = "";
@@ -172,7 +176,7 @@ final class ContinueRow {
     void setDisplayFonts() {
         display = true;
         header.setTypeface(UiFont.get(activity, R.string.font_label_bold));
-        header.setLetterSpacing(sideways ? 0.02f : 0.2f);
+        header.setLetterSpacing(sideways ? 0.12f : 0.2f);
         for (TextView chip : chips) chip.setTypeface(UiFont.get(activity, R.string.font_label_bold));
         signature = "";   // the cards are made again with the new faces at the next refresh
     }
@@ -186,18 +190,38 @@ final class ContinueRow {
         sideways = true;
         perLine = 1000;
         header.setText(R.string.continue_watching);
-        header.setLetterSpacing(0.02f);
+        header.setLetterSpacing(0.12f);
+        header.setAllCaps(true);
         header.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
         header.setTextColor(0xE6FFFFFF);
         header.setShadowLayer(8 * density, 0f, density, 0x66000000);
         int at = view.indexOfChild(strip);
         ViewGroup.LayoutParams lp = strip.getLayoutParams();
         view.removeView(strip);
-        scroller = new android.widget.HorizontalScrollView(activity);
+        scroller = new android.widget.HorizontalScrollView(activity) {
+            /**
+             * Keep the focused card inside the dock's edges, with room for its zoom, rather than against the screen
+             * edge where the zoomed card would be cut off.
+             */
+            @Override
+            protected int computeScrollDeltaToGetChildRectOnScreen(android.graphics.Rect rect) {
+                if (getChildCount() == 0) return 0;
+                int zoom = Math.round(dp(COMPACT_W_DP) * (COMPACT_SCALE - 1f) / 2f) + dp(4);
+                int left = getScrollX() + keepIn + zoom, right = getScrollX() + getWidth() - keepInEnd - zoom;
+                int delta = rect.right > right ? rect.right - right : rect.left < left ? rect.left - left : 0;
+                int max = Math.max(0, getChildAt(0).getWidth() - getWidth());
+                return Math.max(-getScrollX(), Math.min(delta, max - getScrollX()));
+            }
+        };
         scroller.setHorizontalScrollBarEnabled(false);
         scroller.setOverScrollMode(View.OVER_SCROLL_NEVER);
-        scroller.setClipChildren(false);
-        scroller.setClipToPadding(false);
+        // Clipped at its own edges: the row ends at the screen's edge, or before the song's card while one plays.
+        // Cards scrolled past either end fade out over FADE_DP (a focused card always stops clear of the fades). A scroll view with no padding skips its own padding clip, so the row clips
+        // its children (the header and this line, which keeps the cards' zoom room inside the strip's padding).
+        view.setClipChildren(true);
+        scroller.setClipToPadding(true);
+        scroller.setHorizontalFadingEdgeEnabled(true);
+        scroller.setFadingEdgeLength(dp(FADE_DP));
         scroller.setSmoothScrollingEnabled(true);
         strip.setPadding(strip.getPaddingLeft(), dp(6), dp(56), dp(6));
         scroller.addView(strip, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -222,7 +246,23 @@ final class ContinueRow {
     void setStartInset(int px) {
         if (headerRow.getPaddingLeft() == px) return;
         headerRow.setPadding(px, 0, px, 0);   // the dock stands in the middle: as far in from the right
-        strip.setPadding(px, strip.getPaddingTop(), strip.getPaddingRight(), strip.getPaddingBottom());
+        // Sideways the strip runs edge to edge: the same inset at its end, so the last card stops at the dock's edge.
+        strip.setPadding(px, strip.getPaddingTop(), sideways ? px : strip.getPaddingRight(), strip.getPaddingBottom());
+        keepIn = px;
+        keepInEnd = px;
+    }
+
+    /** Sideways: the inset at the row's end (the dock's edge, or just room for the zoom when a card stands there). */
+    void setEndInset(int px) {
+        if (!sideways || keepInEnd == px) return;
+        keepInEnd = px;
+        strip.setPadding(strip.getPaddingLeft(), strip.getPaddingTop(), px, strip.getPaddingBottom());
+    }
+
+    /** Sideways: from the row's top to the top of its cards (under the header), in px. */
+    int cardsTop() {
+        if (!sideways || scroller == null) return 0;
+        return scroller.getTop() + strip.getPaddingTop();
     }
 
     boolean hasFocus() {
@@ -653,7 +693,8 @@ final class ContinueRow {
         inside.setPadding(pad, pad, dp(14), pad);
         card.addView(inside, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        int thumbH = h - 2 * pad, thumbW = Math.round(thumbH * 16f / 9f);
+        // 4:3, cropped from the middle of the 16:9 art and a little zoomed in, so the subject fills the picture.
+        int thumbH = h - 2 * pad, thumbW = Math.round(thumbH * 4f / 3f);
         final float thumbR = 10 * density;
         FrameLayout thumb = new FrameLayout(activity);
         thumb.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
@@ -667,6 +708,8 @@ final class ContinueRow {
         thumb.setClipToOutline(true);
         ImageView art = new ImageView(activity);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        art.setScaleX(1.12f);
+        art.setScaleY(1.12f);
         thumb.addView(art, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         inside.addView(thumb, new LinearLayout.LayoutParams(thumbW, thumbH));
 
@@ -680,11 +723,11 @@ final class ContinueRow {
         LinearLayout kickerRow = new LinearLayout(activity);
         kickerRow.setOrientation(LinearLayout.HORIZONTAL);
         kickerRow.setGravity(Gravity.CENTER_VERTICAL);
-        TextView kicker = text(9.5f, 0x99FFFFFF, true);
+        TextView kicker = text(10.5f, 0x99FFFFFF, true);
         kicker.setLetterSpacing(0.1f);
-        TextView title = text(15f, 0xFFFFFFFF, true);
+        TextView title = text(17.5f, 0xFFFFFFFF, true);
         if (display) title.setTypeface(UiFont.get(activity, R.string.font_title));
-        TextView meta = text(11.5f, 0xA6FFFFFF, false);
+        TextView meta = text(13f, 0xA6FFFFFF, false);
         lines.addView(kickerRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         titleLp.topMargin = dp(4);
@@ -713,7 +756,7 @@ final class ContinueRow {
                     }
                 });
                 badge.setClipToOutline(true);
-                LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(dp(13), dp(13));
+                LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(dp(15), dp(15));
                 blp.rightMargin = dp(6);
                 kickerRow.addView(badge, blp);
             }
