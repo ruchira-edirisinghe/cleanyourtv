@@ -51,6 +51,8 @@ final class WallpaperPlayer {
     private boolean active;
     private boolean closed;
     private boolean loading;
+    /** advance(): the next picture now, whatever the rotation interval says. */
+    private boolean forceNext;
     private String displayed = "";
     /** wallpaper_captions: the shown picture's name from wallpapers/captions.txt; null when off or there are none. */
     private final TextView caption;
@@ -159,6 +161,18 @@ final class WallpaperPlayer {
         return WallpaperMood.select(files, moods, WallpaperMood.timeOfDay(now.getHour() * 60 + now.getMinute(), sun[0], sun[1]));
     }
 
+    /** The next picture of the collection, now (immersive_home: each time the TV is switched on). */
+    void advance() {
+        if (files.size() < 2) return;
+        forceNext = true;
+        update();
+    }
+
+    /** The view the picture is drawn in, or null when there is no wallpaper. */
+    View view() {
+        return image.getParent() != null ? image : null;
+    }
+
     void close() {
         active = false;
         closed = true;
@@ -172,9 +186,10 @@ final class WallpaperPlayer {
         List<File> playable = playable();
         File selected = WallpaperRotation.find(playable, previous);
         long changed = preferences.getLong("changed", 0);
-        if (selected == null || WallpaperRotation.due(changed, System.currentTimeMillis(), interval)) {
+        if (selected == null || forceNext || WallpaperRotation.due(changed, System.currentTimeMillis(), interval)) {
             selected = WallpaperRotation.pick(playable, previous, order, random);
         }
+        forceNext = false;
         if (selected == null || selected.getName().equals(displayed)) return;
         File next = selected;
         loading = true;
