@@ -2389,7 +2389,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (heroBanners) {
             // A full picture can be bright right under the top bar: shade the top so the clock and pills stay readable.
             paint.setShader(new LinearGradient(0, 0, 0, h * 0.3f,
-                    new int[]{0xB3060406, 0x66060406, 0x00060406}, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+                    immersive ? new int[]{0x59060406, 0x26060406, 0x00060406}
+                            : new int[]{0xB3060406, 0x66060406, 0x00060406},
+                    new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
             canvas.drawRect(0, 0, w, h * 0.3f, paint);
         }
         BitmapDrawable scrim = new BitmapDrawable(getResources(), bmp);
@@ -2872,7 +2874,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         lens.addState(new int[]{android.R.attr.state_focused}, new GlassDrawable(glassBackdrop, GlassDrawable.MILK, r, density));
         lens.addState(new int[]{android.R.attr.state_activated},
                 new GlassDrawable(glassBackdrop, GlassDrawable.ACTIVE, r, density));
-        lens.addState(new int[0], new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, r, density));
+        lens.addState(new int[0], new GlassDrawable(glassBackdrop, immersive ? GlassDrawable.BRIGHT : GlassDrawable.CLEAR,
+                r, density));
         button.setBackground(lens);
     }
 
