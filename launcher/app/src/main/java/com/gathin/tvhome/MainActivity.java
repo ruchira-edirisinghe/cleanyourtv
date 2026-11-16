@@ -3251,7 +3251,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private int songGap() {
-        return Math.round(20 * density);
+        return Math.round(28 * density);
     }
 
     /**
