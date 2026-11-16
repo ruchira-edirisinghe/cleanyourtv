@@ -484,10 +484,30 @@ final class ContinueRow {
             }
         });
         card.setClipToOutline(true);
+        // Sideways, in glass: the picture and all on it sit in a frame of Home's glass, a few dp in from the edge.
+        FrameLayout pic = card;
+        if (sideways && glass != null) {
+            final float frame = 5 * density;
+            card.setBackground(new GlassDrawable(glass, GlassDrawable.BRIGHT, radius, density));
+            pic = new FrameLayout(activity);
+            pic.setBackground(fill);
+            pic.setOutlineProvider(new ViewOutlineProvider() {
+                @Override
+                public void getOutline(View v, Outline outline) {
+                    outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius - frame);
+                }
+            });
+            pic.setClipToOutline(true);
+            FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT);
+            int f = Math.round(frame);
+            plp.setMargins(f, f, f, f);
+            card.addView(pic, plp);
+        }
 
         ImageView art = new ImageView(activity);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        card.addView(art, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        pic.addView(art, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         TextView title = text(14.5f, 0xF2FFFFFF, true);
         if (display) {
@@ -500,7 +520,7 @@ final class ContinueRow {
             TextView mark = text(15f, 0xFFFFFFFF, true);
             mark.setText(R.string.continue_connect_title);
             mark.setGravity(Gravity.CENTER);
-            card.addView(mark, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            pic.addView(mark, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             title.setText("Stremio");
             meta.setText(R.string.continue_connect_caption);
         } else {
@@ -508,7 +528,7 @@ final class ContinueRow {
             View shade = new View(activity);
             shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x00000000, 0xB3000000}));
             FrameLayout.LayoutParams shadeLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, cardH / 2, Gravity.BOTTOM);
-            card.addView(shade, shadeLp);
+            pic.addView(shade, shadeLp);
 
             ImageView badge = new ImageView(activity);
             Drawable icon = appIcon(item.pkg);
@@ -524,7 +544,7 @@ final class ContinueRow {
                 int badgeSize = dp(sideways ? 16 : 20);
                 FrameLayout.LayoutParams badgeLp = new FrameLayout.LayoutParams(badgeSize, badgeSize, Gravity.TOP | Gravity.START);
                 badgeLp.setMargins(dp(sideways ? 6 : 8), dp(sideways ? 6 : 8), 0, 0);
-                card.addView(badge, badgeLp);
+                pic.addView(badge, badgeLp);
             }
 
             if (item.isNew) {
@@ -539,7 +559,7 @@ final class ContinueRow {
                 FrameLayout.LayoutParams chipLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
                 chipLp.setMargins(dp(8), 0, 0, dp(8));
-                card.addView(chip, chipLp);
+                pic.addView(chip, chipLp);
             } else if (item.duration > 0) {
                 FrameLayout track = new FrameLayout(activity);
                 GradientDrawable trackBg = new GradientDrawable();
@@ -555,7 +575,7 @@ final class ContinueRow {
                 track.addView(bar, new FrameLayout.LayoutParams(Math.max(dp(4), Math.round(trackW * item.progress())), dp(3)));
                 FrameLayout.LayoutParams trackLp = new FrameLayout.LayoutParams(trackW, dp(3), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
                 trackLp.bottomMargin = dp(8);
-                card.addView(track, trackLp);
+                pic.addView(track, trackLp);
             }
             // The title's logo over its backdrop, at the bottom left, above the bar or the new episode chip.
             // (Sideways the tile is small and its name is right under it: no logo.)
@@ -568,7 +588,7 @@ final class ContinueRow {
                 FrameLayout.LayoutParams logoLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                         dp(36), Gravity.BOTTOM | Gravity.START);
                 logoLp.setMargins(dp(10), 0, 0, dp(item.isNew ? 32 : 18));
-                card.addView(logo, logoLp);
+                pic.addView(logo, logoLp);
                 loadLogo("https://images.metahub.space/logo/medium/" + imdb + "/img", logo);
             }
             title.setText(item.title);
@@ -786,6 +806,15 @@ final class ContinueRow {
     }
 
     /** The cover for the top banner, at the screen's width: from memory, the disk or the web. */
+    /** Home's glass (liquid_glass): sideways, each tile's picture sits in a glass frame. Null for none. */
+    private GlassBackdrop glass;
+
+    void setGlass(GlassBackdrop backdrop) {
+        if (glass == backdrop) return;
+        glass = backdrop;
+        signature = "";   // made again in glass at the next refresh
+    }
+
     /** The immersive Home's scrim, painted into each cover as it is decoded (ShadeBaker); null for none. */
     private ShadeBaker coverShade;
 

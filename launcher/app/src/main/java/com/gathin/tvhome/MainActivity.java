@@ -2172,6 +2172,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void setUpLiquidGlass(Config cfg) {
         glassBackdrop = new GlassBackdrop();
+        if (immersive && continueRow != null) continueRow.setGlass(glassBackdrop);
         LinearLayout block = findViewById(R.id.leftBlock);
         View content = (View) block.getParent().getParent();
         List<View> layers = new ArrayList<>();
@@ -2752,6 +2753,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         if (immersive) continueRow.setSideways();
         continueRow.setCoverShade(shadeBaker);
+        if (immersive) continueRow.setGlass(glassBackdrop);
         ViewGroup wrapper = (ViewGroup) grid.getParent();
         wrapper.addView(continueRow.view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
