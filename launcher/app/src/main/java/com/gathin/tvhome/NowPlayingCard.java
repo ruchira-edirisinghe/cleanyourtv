@@ -55,12 +55,14 @@ final class NowPlayingCard extends FrameLayout {
     private boolean square;
     /** A song to show, and whether its place lets it show now (Home hides it once the apps scroll). */
     private boolean hasSong, allowed = true, visibleNow;
+    /** The song plays (the bars dance, the time runs); false shows the last one, stopped. */
+    private boolean playing = true;
 
     private final Runnable tick = new Runnable() {
         @Override
         public void run() {
             removeCallbacks(this);
-            if (!visibleNow || track == null) return;
+            if (!visibleNow || track == null || !playing) return;
             showTime();
             postDelayed(this, TICK_MS);
         }
@@ -280,14 +282,26 @@ final class NowPlayingCard extends FrameLayout {
 
     /** Shows this song (null: nothing plays, the card fades out). */
     void setTrack(NowPlaying.Track t) {
+        setTrack(t, true);
+    }
+
+    /** Shows this song, playing or stopped (the last one played, "Last played", the bars still); null fades it out. */
+    void setTrack(NowPlaying.Track t, boolean playing) {
         NowPlaying.Track before = track;
+        boolean wasPlaying = this.playing;
         track = t;
+        this.playing = playing;
         hasSong = t != null;
         if (t != null) {
-            if (!t.sameSong(before)) showSong(t);
+            if (!t.sameSong(before) || wasPlaying != playing) showSong(t);
             showTime();
         }
         settle();
+        if (visibleNow && wasPlaying != playing) {
+            bars.setRunning(playing);
+            removeCallbacks(tick);
+            if (playing) post(tick);
+        }
     }
 
     /** Whether the card's place lets it show (false fades it out even while a song plays). */
@@ -295,6 +309,11 @@ final class NowPlayingCard extends FrameLayout {
         if (this.allowed == allowed) return;
         this.allowed = allowed;
         settle();
+    }
+
+    /** The shown song's name, or "" with none. */
+    String songTitle() {
+        return track == null ? "" : track.title;
     }
 
     boolean hasSong() {
@@ -305,7 +324,8 @@ final class NowPlayingCard extends FrameLayout {
         if (t.art != null) art.setImageBitmap(t.art);
         else art.setImageDrawable(appIcon(t.pkg));
         String app = upright ? "" : appLabel(t.pkg);   // the upright card has no room for the app's name
-        String head = app.isEmpty() ? getContext().getString(R.string.now_playing)
+        String head = !playing ? getContext().getString(R.string.now_playing_last)
+                : app.isEmpty() ? getContext().getString(R.string.now_playing)
                 : getContext().getString(R.string.now_playing_on, app);
         kicker.setText(head.toUpperCase(Locale.getDefault()));
         title.setText(t.title);
@@ -338,8 +358,9 @@ final class NowPlayingCard extends FrameLayout {
         if (show) {
             setVisibility(View.VISIBLE);
             animate().alpha(1f).setDuration(FADE_MS).start();
-            bars.setRunning(true);
-            post(tick);
+            bars.setRunning(playing);
+            showTime();
+            if (playing) post(tick);
         } else {
             removeCallbacks(tick);
             bars.setRunning(false);

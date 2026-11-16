@@ -326,6 +326,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** now_playing: what the music apps play, and its card in the hero area. */
     private NowPlaying nowPlaying;
     private NowPlayingCard nowPlayingCard;
+    /** Immersive: the song that plays now (null when none), the last one seen, and whether the owner hid the card. */
+    private NowPlaying.Track songNow, songLast;
+    private boolean songHidden;
     private int glassSignature;
     private long glassCaptured;
     private final Runnable glassCapture = this::captureGlass;
@@ -1217,6 +1220,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onResume() {
         super.onResume();
         resumed = true;
+        // The song's card comes back once its music app was opened from Home (LastSong.opened).
+        if (immersive && nowPlayingCard != null && songHidden && !LastSong.hidden(this)) {
+            songHidden = false;
+            showSongCard();
+        }
         // A festival that started or ended while Home was in the background: rebuild with or without it.
         if (festive != festival.active(LocalDate.now())) {
             recreate();
@@ -2981,7 +2989,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         stats.setVisibility(View.GONE);
         android.graphics.Typeface time = UiFont.get(this, R.string.font_light);
         android.graphics.Typeface date = UiFont.get(this, R.string.font_medium);
-        ImmersiveClock clock = new ImmersiveClock(this, date, time, 172f, clockFormat);
+        ImmersiveClock clock = new ImmersiveClock(this, date, time, 155f, clockFormat);
         immersiveClock = clock;
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
@@ -3277,6 +3285,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (i == null) i = getPackageManager().getLaunchIntentForPackage(pkg);
         if (i == null) return;
         i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        LastSong.opened(this, pkg);
         try {
             startActivity(i);
         } catch (ActivityNotFoundException ignored) {
@@ -3296,6 +3305,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         nowPlaying = new NowPlaying(this, cfg.nowPlayingApps, this::showNowPlaying);
         if (immersive) {
             nowPlayingCard.makeFocusable(this::openPlayingApp);
+            nowPlayingCard.setLongClickable(true);
+            nowPlayingCard.setOnLongClickListener(v -> {
+                showSongMenu();
+                return true;
+            });
+            songHidden = LastSong.hidden(this);
+            final android.content.Context app = getApplicationContext();
+            new Thread(() -> {
+                NowPlaying.Track saved = LastSong.load(app);
+                runOnUiThread(() -> {
+                    if (isDestroyed() || saved == null || songLast != null) return;
+                    songLast = saved;
+                    showSongCard();
+                });
+            }, "last-song").start();
             nowPlayingCard.setOnKeyListener((v, keyCode, event) -> {
                 if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
                 if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
@@ -3328,8 +3352,52 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void showNowPlaying(NowPlaying.Track track) {
         nowPlayingCard.setAllowed(atTop(grid));
-        nowPlayingCard.setTrack(track);
-        if (immersive) applySongMode(track != null);
+        if (!immersive) {
+            nowPlayingCard.setTrack(track);
+            return;
+        }
+        // Immersive: the card stays up with the last song once the music stops, until it is hidden.
+        if (track != null) {
+            songLast = track;
+            LastSong.save(this, track);
+        } else if (songNow != null) {
+            songLast = LastSong.stopped(songNow);
+            LastSong.save(this, songLast);
+        }
+        songNow = track;
+        showSongCard();
+    }
+
+    /** The song that plays, else the last one stopped; nothing once hidden. The dock makes room only while it shows. */
+    private void showSongCard() {
+        if (nowPlayingCard == null || !immersive) return;
+        NowPlaying.Track t = songHidden ? null : songNow != null ? songNow : songLast;
+        nowPlayingCard.setTrack(t, songNow != null);
+        applySongMode(t != null);
+    }
+
+    /** Hold OK on the song's card: open its app, or hide the card until that app is opened from Home again. */
+    private void showSongMenu() {
+        String pkg = nowPlayingCard.playingPackage();
+        if (pkg == null) return;
+        CharSequence label = pkg;
+        try {
+            label = getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(pkg, 0));
+        } catch (PackageManager.NameNotFoundException ignored) {
+        }
+        String[] items = {getString(R.string.continue_open_app, label), getString(R.string.now_playing_hide, label)};
+        new android.app.AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle(nowPlayingCard.songTitle())
+                .setItems(items, (d, which) -> {
+                    if (which == 0) {
+                        openPlayingApp();
+                        return;
+                    }
+                    LastSong.hide(this);
+                    songHidden = true;
+                    showSongCard();
+                })
+                .show();
     }
 
     /**
