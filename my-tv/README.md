@@ -24,6 +24,23 @@ APK: the launcher reads them from its theme folder on the TV.
 All of it was made with Higgsfield (GPT Image 2.5). The banner prompts are in [`heroes/PROMPTS.md`](heroes/PROMPTS.md);
 the icons come from [`icons/gen_icons.py`](icons/gen_icons.py), which skips any icon that is already there.
 
+## Immersive Home
+
+![Immersive Home: the date over a large time blended into PeoTV's banner, Continue watching over the eight-app dock](screenshots/home-immersive.jpg)
+
+`immersive_home` turns Home into a lock screen. The date stands over a large time in the middle, and the time is
+blended into the picture behind it rather than painted on top: an overlay pass lifts the banner inside the digits and
+a faint white pass frosts them, so the focused app's banner shows through the numbers and their colour changes with
+it (`ImmersiveClock`). Inputs and Wi-Fi sit at the top left, Settings and Apps at the top right. Continue watching is
+one line of compact glass cards that scrolls sideways, right over the dock: the picture at the left, then the app,
+the title, the episode or channel with the time left, and how far in. Focusing a card puts its cover behind
+everything, as a dock app puts its banner.
+
+Up from the dock goes to Continue watching and on to the nearest top button; Down comes back the same way. The app's
+name over the dock and the Continue watching chips are left out. The dock holds eight apps (`columns` 8), MagiConnect
+and PeoTV among them. Set `immersive_home` to false in `config.xml` (or `"immersive_home": false` in a theme) to
+go back to the clock at the top left, the four buttons at the top right and Continue watching under the dock.
+
 ## Put it on the TV
 
 With the fork's launcher installed and ADB connected:
