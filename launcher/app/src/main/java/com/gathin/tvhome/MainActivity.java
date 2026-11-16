@@ -770,7 +770,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     cfg.dockEvenPadding, cfg.dockBand, singleRow, cfg.dockBandAll);
             grid.addItemDecoration(dockDecoration);
         }
-        if (cfg.fadeRows) TopFade.attach(grid, 48 * density);
+        // Immersive: the dock never scrolls, and the fade's hardware layer would cost a full-screen pass every frame.
+        if (cfg.fadeRows && !immersive) TopFade.attach(grid, 48 * density);
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
             grid.setLayoutAnimation(new LayoutAnimationController(
