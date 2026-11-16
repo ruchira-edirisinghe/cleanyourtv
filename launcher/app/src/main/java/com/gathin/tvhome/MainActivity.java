@@ -2363,8 +2363,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         paint.setShader(new LinearGradient(rtl ? w : 0, 0, rtl ? 0 : w, 0,
                 new int[]{0xD1060406, 0x59060406, 0x00060406}, new float[]{0f, 0.42f, 0.7f}, Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, w, h, paint);
+        // immersive_home: the rows sit on the dock's band and the cards, so the wallpaper only needs a light shade under them.
         paint.setShader(new LinearGradient(0, 0, 0, h,
-                new int[]{0x00060406, 0x00060406, 0xDB060406, 0xFF060406}, new float[]{0f, 0.28f, 0.58f, 0.76f},
+                immersive ? new int[]{0x00060406, 0x00060406, 0x59060406, 0x99060406}
+                        : new int[]{0x00060406, 0x00060406, 0xDB060406, 0xFF060406},
+                immersive ? new float[]{0f, 0.42f, 0.74f, 1f} : new float[]{0f, 0.28f, 0.58f, 0.76f},
                 Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, w, h, paint);
         if (heroBanners) {
