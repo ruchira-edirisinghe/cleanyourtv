@@ -71,6 +71,8 @@ final class ContinueRow {
     /** Banner-shaped cards, 16:9, four to a line as wide as the dock's tiles reach, with this much between lines. */
     private static final float CARD_W_DP = 186f, CARD_H_DP = 105f, GAP_DP = 20f, LINE_GAP_DP = 18f;
     private static final int PER_LINE = 4;
+    /** Sideways (immersive_home): one line of compact cards, the picture at the left and the lines beside it. */
+    private static final float COMPACT_W_DP = 292f, COMPACT_H_DP = 76f, COMPACT_GAP_DP = 16f, COMPACT_SCALE = 1.05f;
     private static final float FOCUS_SCALE = 1.08f;
     private static final int STREMIO_PURPLE = 0xFF7B5BF5;
 
@@ -101,6 +103,10 @@ final class ContinueRow {
     private boolean display;
     /** The lines of cards, one under another. */
     private final LinearLayout strip;
+    /** Cards to a line: four, or every card in one line once sideways. */
+    private int perLine = PER_LINE;
+    private boolean sideways;
+    private android.widget.HorizontalScrollView scroller;
     private final List<WatchHistory.Item> items = new ArrayList<>();
     private final List<View> cards = new ArrayList<>();
     private String signature = "";
@@ -166,14 +172,43 @@ final class ContinueRow {
     void setDisplayFonts() {
         display = true;
         header.setTypeface(UiFont.get(activity, R.string.font_label_bold));
-        header.setLetterSpacing(0.2f);
+        header.setLetterSpacing(sideways ? 0.02f : 0.2f);
         for (TextView chip : chips) chip.setTypeface(UiFont.get(activity, R.string.font_label_bold));
         signature = "";   // the cards are made again with the new faces at the next refresh
     }
 
+    /**
+     * immersive_home: every card in one line that scrolls sideways, as compact glass cards, the line's name in plain case
+     * and no chips. Call before the first refresh.
+     */
+    void setSideways() {
+        if (sideways) return;
+        sideways = true;
+        perLine = 1000;
+        header.setText(R.string.continue_watching);
+        header.setLetterSpacing(0.02f);
+        header.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
+        header.setTextColor(0xE6FFFFFF);
+        header.setShadowLayer(8 * density, 0f, density, 0x66000000);
+        int at = view.indexOfChild(strip);
+        ViewGroup.LayoutParams lp = strip.getLayoutParams();
+        view.removeView(strip);
+        scroller = new android.widget.HorizontalScrollView(activity);
+        scroller.setHorizontalScrollBarEnabled(false);
+        scroller.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        scroller.setClipChildren(false);
+        scroller.setClipToPadding(false);
+        scroller.setSmoothScrollingEnabled(true);
+        strip.setPadding(strip.getPaddingLeft(), dp(6), dp(56), dp(6));
+        scroller.addView(strip, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        view.addView(scroller, at, lp);
+        signature = "";
+    }
+
     /** The row's height as laid out, for the room under the dock. */
     int heightPx() {
-        int lines = Math.max(1, (cards.size() + PER_LINE - 1) / PER_LINE);
+        if (sideways) return dp(30 + 4 + 8 + COMPACT_H_DP + 12);
+        int lines = Math.max(1, (cards.size() + perLine - 1) / perLine);
         // header with its chips (30dp) + gap + zoom room, then each line: card + two text lines + their gaps
         float line = CARD_H_DP + 10 + 20 + 17;
         return dp(30 + 4 + 8 + lines * line + (lines - 1) * LINE_GAP_DP + 4 + 24);
@@ -324,7 +359,7 @@ final class ContinueRow {
 
     /** The chips (whenever the row has anything), and the cards the picked one shows. */
     private void rebuild() {
-        boolean showChips = !all.isEmpty();
+        boolean showChips = !all.isEmpty() && !sideways;
         for (TextView chip : chips) chip.setVisibility(showChips ? View.VISIBLE : View.GONE);
         if (!showChips && filter != ALL) {
             filter = ALL;
@@ -345,7 +380,7 @@ final class ContinueRow {
                 focusedKey = i < items.size() ? items.get(i).source + items.get(i).key : "connect";
             }
         }
-        int linesBefore = (cards.size() + PER_LINE - 1) / PER_LINE;
+        int linesBefore = (cards.size() + perLine - 1) / perLine;
         items.clear();
         items.addAll(next);
         cards.clear();
@@ -364,7 +399,7 @@ final class ContinueRow {
         boolean wasShown = shown;
         applyShown();
         // Another number of lines: the room under the dock changes too.
-        if (shown && wasShown && (cards.size() + PER_LINE - 1) / PER_LINE != linesBefore) host.onContinueShownChanged(true);
+        if (shown && wasShown && (cards.size() + perLine - 1) / perLine != linesBefore) host.onContinueShownChanged(true);
         if (focusedIndex >= 0 && shown) {
             int target = Math.min(focusedIndex, cards.size() - 1);
             for (int i = 0; i < items.size(); i++) {
@@ -386,6 +421,10 @@ final class ContinueRow {
     // ---- cards --------------------------------------------------------------------------------------------------
 
     private void addCard(WatchHistory.Item item, int index) {
+        if (sideways) {
+            addCompactCard(item, index);
+            return;
+        }
         LinearLayout column = new LinearLayout(activity);
         column.setOrientation(LinearLayout.VERTICAL);
         column.setClipChildren(false);
@@ -505,9 +544,14 @@ final class ContinueRow {
         column.addView(meta, metaLp);
         title.setAlpha(0.8f);
         meta.setAlpha(0.8f);
+        place(column, card, title, meta, item, index, radius, FOCUS_SCALE, GAP_DP);
+    }
 
+    /** Puts a card in its line and gives it focus, OK, hold and arrow handling. */
+    private void place(View column, View card, TextView title, TextView meta, WatchHistory.Item item, int index,
+                       float radius, float focusScale, float gapDp) {
         LinearLayout line;
-        if (index % PER_LINE == 0) {
+        if (index % perLine == 0) {
             line = new LinearLayout(activity);
             line.setOrientation(LinearLayout.HORIZONTAL);
             line.setClipChildren(false);
@@ -520,7 +564,7 @@ final class ContinueRow {
             line = (LinearLayout) strip.getChildAt(strip.getChildCount() - 1);
         }
         LinearLayout.LayoutParams columnLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        if (index % PER_LINE > 0) columnLp.leftMargin = dp(GAP_DP);
+        if (index % perLine > 0) columnLp.leftMargin = dp(gapDp);
         line.addView(column, columnLp);
         cards.add(card);
 
@@ -530,7 +574,7 @@ final class ContinueRow {
         ring.setColor(0x00000000);
         card.setOnFocusChangeListener((v, focused) -> {
             v.animate().cancel();
-            v.animate().scaleX(focused ? FOCUS_SCALE : 1f).scaleY(focused ? FOCUS_SCALE : 1f)
+            v.animate().scaleX(focused ? focusScale : 1f).scaleY(focused ? focusScale : 1f)
                     .translationZ(focused ? 8 * density : 0f).setDuration(focused ? 200 : 150)
                     .setInterpolator(new DecelerateInterpolator(1.5f)).start();
             card.setForeground(focused ? ring : null);
@@ -551,23 +595,23 @@ final class ContinueRow {
             int at = cards.indexOf(v);
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_UP:
-                    if (at >= PER_LINE) cards.get(at - PER_LINE).requestFocus();
+                    if (at >= perLine) cards.get(at - perLine).requestFocus();
                     else if (chipsShown()) chips[filter].requestFocus();
                     else host.onContinueUp(centerX(v));
                     return true;
                 case KeyEvent.KEYCODE_DPAD_DOWN:
                     // The card under this one, or the last card when the line below is shorter; past the last line, on.
-                    if (at / PER_LINE < (cards.size() - 1) / PER_LINE) {
-                        cards.get(Math.min(at + PER_LINE, cards.size() - 1)).requestFocus();
+                    if (at / perLine < (cards.size() - 1) / perLine) {
+                        cards.get(Math.min(at + perLine, cards.size() - 1)).requestFocus();
                     } else {
                         host.onContinueDown(centerX(v));
                     }
                     return true;
                 case KeyEvent.KEYCODE_DPAD_LEFT:
-                    if (at % PER_LINE > 0) cards.get(at - 1).requestFocus();
+                    if (at % perLine > 0) cards.get(at - 1).requestFocus();
                     return true;
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    if (at % PER_LINE < PER_LINE - 1 && at + 1 < cards.size()) cards.get(at + 1).requestFocus();
+                    if (at % perLine < perLine - 1 && at + 1 < cards.size()) cards.get(at + 1).requestFocus();
                     return true;
                 case KeyEvent.KEYCODE_MENU:
                     if (event.getRepeatCount() == 0) showMenu(item);
@@ -576,6 +620,145 @@ final class ContinueRow {
                     return false;
             }
         });
+    }
+
+    /**
+     * Sideways: a glass card with the picture at the left and beside it the app (its icon and name), the title, the
+     * episode or channel with the time left, and how far in as a thin bar.
+     */
+    private void addCompactCard(WatchHistory.Item item, int index) {
+        final float radius = 16 * density;
+        int w = dp(COMPACT_W_DP), h = dp(COMPACT_H_DP);
+        FrameLayout card = new FrameLayout(activity);
+        card.setFocusable(true);
+        card.setClickable(true);
+        card.setLongClickable(true);
+        GradientDrawable glass = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                new int[]{0x8C1C1C26, 0xA60E0E14});
+        glass.setCornerRadius(radius);
+        glass.setStroke(Math.max(1, dp(1)), 0x2EFFFFFF);
+        card.setBackground(glass);
+        card.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, Outline outline) {
+                outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius);
+            }
+        });
+        card.setClipToOutline(true);
+
+        LinearLayout inside = new LinearLayout(activity);
+        inside.setOrientation(LinearLayout.HORIZONTAL);
+        inside.setGravity(Gravity.CENTER_VERTICAL);
+        int pad = dp(8);
+        inside.setPadding(pad, pad, dp(14), pad);
+        card.addView(inside, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        int thumbH = h - 2 * pad, thumbW = Math.round(thumbH * 16f / 9f);
+        final float thumbR = 10 * density;
+        FrameLayout thumb = new FrameLayout(activity);
+        thumb.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                item == null ? new int[]{STREMIO_PURPLE, 0xFF2A1E66} : new int[]{0xFF26262E, 0xFF15151A}));
+        thumb.setOutlineProvider(new ViewOutlineProvider() {
+            @Override
+            public void getOutline(View v, Outline outline) {
+                outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), thumbR);
+            }
+        });
+        thumb.setClipToOutline(true);
+        ImageView art = new ImageView(activity);
+        art.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        thumb.addView(art, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        inside.addView(thumb, new LinearLayout.LayoutParams(thumbW, thumbH));
+
+        LinearLayout lines = new LinearLayout(activity);
+        lines.setOrientation(LinearLayout.VERTICAL);
+        lines.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams linesLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        linesLp.leftMargin = dp(12);
+        inside.addView(lines, linesLp);
+
+        LinearLayout kickerRow = new LinearLayout(activity);
+        kickerRow.setOrientation(LinearLayout.HORIZONTAL);
+        kickerRow.setGravity(Gravity.CENTER_VERTICAL);
+        TextView kicker = text(9.5f, 0x99FFFFFF, true);
+        kicker.setLetterSpacing(0.1f);
+        TextView title = text(15f, 0xFFFFFFFF, true);
+        if (display) title.setTypeface(UiFont.get(activity, R.string.font_title));
+        TextView meta = text(11.5f, 0xA6FFFFFF, false);
+        lines.addView(kickerRow, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        titleLp.topMargin = dp(4);
+        lines.addView(title, titleLp);
+        LinearLayout.LayoutParams metaLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        metaLp.topMargin = dp(3);
+        lines.addView(meta, metaLp);
+
+        if (item == null) {
+            TextView mark = text(12f, 0xFFFFFFFF, true);
+            mark.setText("Stremio");
+            mark.setGravity(Gravity.CENTER);
+            thumb.addView(mark, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            kicker.setText("STREMIO");
+            title.setText(R.string.continue_connect_title);
+            meta.setText(R.string.continue_connect_caption);
+        } else {
+            Drawable icon = appIcon(item.pkg);
+            if (icon != null) {
+                ImageView badge = new ImageView(activity);
+                badge.setImageDrawable(icon);
+                badge.setOutlineProvider(new ViewOutlineProvider() {
+                    @Override
+                    public void getOutline(View v, Outline outline) {
+                        outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), 3 * density);
+                    }
+                });
+                badge.setClipToOutline(true);
+                LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(dp(13), dp(13));
+                blp.rightMargin = dp(6);
+                kickerRow.addView(badge, blp);
+            }
+            kicker.setText(appLabel(item.pkg).toUpperCase(java.util.Locale.getDefault()));
+            if (item.isNew) {
+                kicker.setText(activity.getString(R.string.continue_new_episode).toUpperCase(java.util.Locale.getDefault()));
+                kicker.setTextColor(0xFFB9A6FF);
+            }
+            title.setText(item.title);
+            meta.setText(metaLine(activity, item));
+            if (!item.isNew && item.duration > 0) {
+                FrameLayout track = new FrameLayout(activity);
+                GradientDrawable trackBg = new GradientDrawable();
+                trackBg.setColor(0x33FFFFFF);
+                trackBg.setCornerRadius(dp(2));
+                track.setBackground(trackBg);
+                View bar = new View(activity);
+                GradientDrawable barBg = new GradientDrawable();
+                barBg.setColor(0xFFFFFFFF);
+                barBg.setCornerRadius(dp(2));
+                bar.setBackground(barBg);
+                int trackW = w - pad - thumbW - dp(12) - dp(14);
+                track.addView(bar, new FrameLayout.LayoutParams(Math.max(dp(4), Math.round(trackW * item.progress())), dp(3)));
+                LinearLayout.LayoutParams trackLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(3));
+                trackLp.topMargin = dp(7);
+                lines.addView(track, trackLp);
+            }
+            loadCardArt(item, art, thumb);
+        }
+        kickerRow.addView(kicker, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+        FrameLayout column = new FrameLayout(activity);
+        column.setClipChildren(false);
+        column.setClipToPadding(false);
+        column.addView(card, new FrameLayout.LayoutParams(w, h));
+        place(column, card, title, meta, item, index, radius, COMPACT_SCALE, COMPACT_GAP_DP);
+    }
+
+    private String appLabel(String pkg) {
+        try {
+            PackageManager pm = activity.getPackageManager();
+            return pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString();
+        } catch (PackageManager.NameNotFoundException e) {
+            return "";
+        }
     }
 
     private TextView text(float sp, int color, boolean medium) {
@@ -630,7 +813,7 @@ final class ContinueRow {
         if (cards.isEmpty()) return false;
         View best = null;
         float bestD = Float.MAX_VALUE;
-        for (View c : cards.subList(0, Math.min(PER_LINE, cards.size()))) {
+        for (View c : sideways ? cards : cards.subList(0, Math.min(perLine, cards.size()))) {
             float d = Math.abs(centerX(c) - screenX);
             if (d < bestD) {
                 bestD = d;
