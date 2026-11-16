@@ -305,6 +305,9 @@ final class Config {
     boolean topBarGrid;
     /** Square buttons in each row of top_bar_grid (config.xml, top_bar_grid_columns): 2 makes 2x2, 4 one line. */
     int topBarGridColumns = 2;
+    /** Home as a lock screen: a large clock blended into the wallpaper in the middle, Inputs and Wi-Fi at the top left,
+     *  Settings and Apps at the top right, Keep watching as one sideways line over the dock (config.xml, immersive_home). */
+    boolean immersiveHome;
     String weatherLocation = "";
     boolean weatherFahrenheit;
 
@@ -581,6 +584,7 @@ final class Config {
         boolean appsPopup = res.getBoolean(R.bool.apps_popup);
         boolean topBarGrid = res.getBoolean(R.bool.top_bar_grid);
         int topBarGridColumns = res.getInteger(R.integer.top_bar_grid_columns);
+        boolean immersiveHome = res.getBoolean(R.bool.immersive_home);
         String weatherLocation = res.getString(R.string.weather_location);
         boolean weatherFahrenheit = res.getBoolean(R.bool.weather_fahrenheit);
         boolean applied = false;
@@ -710,6 +714,7 @@ final class Config {
             appsPopup = bool(json, "apps_popup", appsPopup);
             topBarGrid = bool(json, "top_bar_grid", topBarGrid);
             topBarGridColumns = integer(json, "top_bar_grid_columns", topBarGridColumns, 1, 8);
+            immersiveHome = bool(json, "immersive_home", immersiveHome);
             weatherLocation = string(json, "weather_location", weatherLocation);
             weatherFahrenheit = bool(json, "weather_fahrenheit", weatherFahrenheit);
             glowStyle = string(json, "glow_style", glowStyle);
@@ -792,6 +797,7 @@ final class Config {
         built.appsPopup = appsPopup;
         built.topBarGrid = topBarGrid;
         built.topBarGridColumns = Math.max(1, Math.min(8, topBarGridColumns));
+        built.immersiveHome = immersiveHome;
         built.weatherLocation = weatherLocation.trim();
         built.weatherFahrenheit = weatherFahrenheit;
         return built;

@@ -284,6 +284,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean singleRow;
     /** top_bar_grid: the top bar's buttons as square icons in a 2x2 grid at the top right. */
     private boolean topBarGrid;
+    /** immersive_home: the lock-screen Home (ImmersiveClock in the middle, Keep watching over the dock). */
+    private boolean immersive;
+    private ImmersiveClock immersiveClock;
     /** The highlight springs past its target (config.xml, focus_overshoot); false goes straight there. */
     private boolean focusOvershoot;
     /** Festive skin from the theme (see Festival); applied while it is active today. */
@@ -567,11 +570,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         cinematicWhiteFocus = cfg.cinematicWhiteFocus;
         heroArtAlpha = cfg.cinematicArt / 100f;
         heroBanners = cinematic && cfg.heroBanners;
+        immersive = cfg.immersiveHome && cfg.dockRow && !cfg.singleRow;
         if (cinematic) setUpCinematicShelf(cfg.cinematicScrim);
         if (cfg.gridGlow && cfg.dockRow && !cfg.singleRow) setUpGridGlow();
         // dock_title false: the name above the dock (and the cinematic lines under it) never shows; the glow
         // still follows the dock.
-        if (!cfg.dockTitle) hero.setVisibility(View.GONE);
+        if (!cfg.dockTitle || immersive) hero.setVisibility(View.GONE);
         greeting = findViewById(R.id.greeting);
         clockBlock = findViewById(R.id.leftBlock);
         clockRefresh = new ClockRefresh(clockBlock);
@@ -955,6 +959,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return shownChild(cells, false) == row;
                 if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                     if (shownChild(cells, true) != row) return false;
+                    if (immersive && continueRow != null && continueRow.shown()
+                            && continueRow.focusNearest(screenCenterX(v))) return true;
                     focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                     return true;
                 }
@@ -992,8 +998,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (festive) applyFestiveSkin((TextView) btnInputs, (TextView) btnSettings);
         if (cfg.liquidGlass) setUpLiquidGlass(cfg);
-        topBarGrid = cfg.topBarGrid && !cfg.topMenu;
-        if (topBarGrid) gridTopButtons(cfg.liquidGlass, cfg.topBarGridColumns);
+        topBarGrid = (cfg.topBarGrid || immersive) && !cfg.topMenu;
+        if (topBarGrid) gridTopButtons(cfg.liquidGlass, immersive ? 8 : cfg.topBarGridColumns);
+        if (immersive && topBarGrid) splitTopButtons();
+        if (immersive) setUpImmersiveClock();
         if (cfg.nowPlaying) setUpNowPlaying(cfg);
 
         // Hide the glass when focus leaves the tiles.
@@ -2549,12 +2557,22 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
             @Override
             public void onContinueUp(float screenX) {
+                if (immersive) {
+                    focusNearestTopButton(screenX);
+                    grid.playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
+                    return;
+                }
                 focusNearestTile(screenX, 0, Math.min(adapter.dockFilled(), COLUMNS));
                 grid.playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
             }
 
             @Override
             public void onContinueDown(float screenX) {
+                if (immersive) {
+                    focusNearestTile(screenX, 0, Math.min(adapter.dockFilled(), COLUMNS));
+                    grid.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN);
+                    return;
+                }
                 int n = adapter.appCount();
                 if (n <= COLUMNS) return;
                 focusNearestTile(screenX, COLUMNS, Math.min(n, COLUMNS + GRID_COLUMNS));
@@ -2563,11 +2581,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
             @Override
             public void onContinueShownChanged(boolean shown) {
-                if (dockDecoration == null) return;
+                if (dockDecoration == null || immersive) return;   // immersive: the row stands over the dock
                 dockDecoration.setExtraBottom(shown ? continueRow.heightPx() : 0);
                 grid.invalidateItemDecorations();
             }
         });
+        if (immersive) continueRow.setSideways();
         ViewGroup wrapper = (ViewGroup) grid.getParent();
         wrapper.addView(continueRow.view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -2587,6 +2606,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (continueRow == null) return;
         if (!continueRow.shown()) {
             liftHeader(0f);
+            return;
+        }
+        if (immersive) {
+            placeContinueOverDock();
             return;
         }
         float top;
@@ -2734,6 +2757,120 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         return findViewById(R.id.btnApps).getVisibility() == View.VISIBLE ? R.id.btnApps : R.id.btnSettings;
     }
 
+    // ---- immersive home ----------------------------------------------------------------------------
+
+    /**
+     * immersive_home: the top bar's four squares split across the top, Inputs and Wi-Fi at the left and Settings and Apps
+     * at the right, with the clock between them. The bar spans the content's width with a spacer in the middle.
+     */
+    private void splitTopButtons() {
+        LinearLayout bar = findViewById(R.id.topButtons);
+        if (bar.getChildCount() == 0) return;
+        LinearLayout row = (LinearLayout) bar.getChildAt(0);
+        View content = (View) headerRow().getParent();
+        View after = btnWifi.getParent() == row && btnWifi.getVisibility() == View.VISIBLE ? btnWifi : btnInputs;
+        View spacer = new View(this);
+        spacer.setFocusable(false);
+        spacer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        row.addView(spacer, row.indexOfChild(after) + 1, new LinearLayout.LayoutParams(0, 1, 1f));
+        // Settings keeps its gap after the spacer only as a margin: drop it, the spacer is the gap.
+        LinearLayout.LayoutParams rlp = (LinearLayout.LayoutParams) row.getLayoutParams();
+        rlp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+        row.setLayoutParams(rlp);
+        FrameLayout.LayoutParams flp = (FrameLayout.LayoutParams) bar.getLayoutParams();
+        flp.width = ViewGroup.LayoutParams.MATCH_PARENT;
+        flp.gravity = Gravity.TOP | Gravity.START;
+        flp.setMarginStart(content.getPaddingStart());
+        flp.setMarginEnd(content.getPaddingEnd());
+        bar.setLayoutParams(flp);
+    }
+
+    /** The middle of a view on the screen, across. */
+    private static float screenCenterX(View v) {
+        int[] at = new int[2];
+        v.getLocationOnScreen(at);
+        return at[0] + v.getWidth() / 2f;
+    }
+
+    /** Focuses the shown top button nearest this screen x. */
+    private void focusNearestTopButton(float screenX) {
+        View best = null;
+        float bestD = Float.MAX_VALUE;
+        for (View b : new View[]{btnInputs, btnWifi, btnVpn, btnReorder, btnLibraryTop, findViewById(R.id.btnSettings),
+                findViewById(R.id.btnApps)}) {
+            if (b == null || b.getVisibility() != View.VISIBLE || !b.isFocusable()) continue;
+            float d = Math.abs(screenCenterX(b) - screenX);
+            if (d < bestD) {
+                bestD = d;
+                best = b;
+            }
+        }
+        if (best != null) best.requestFocus();
+        else focusColumnEnd();
+    }
+
+    /**
+     * The date and the large blended time in the middle of the screen, over the wallpaper and the focused app's banner and
+     * under everything else; the header's own clock stays laid out (the top bar's place hangs on it) but unseen.
+     */
+    private void setUpImmersiveClock() {
+        clockBlock.setVisibility(View.INVISIBLE);
+        stats.setVisibility(View.GONE);
+        android.graphics.Typeface time = UiFont.get(this, R.string.font_light);
+        android.graphics.Typeface date = UiFont.get(this, R.string.font_medium);
+        ImmersiveClock clock = new ImmersiveClock(this, date, time, 172f, clockFormat);
+        immersiveClock = clock;
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
+        lp.topMargin = Math.round(64 * density);
+        View content = (View) headerRow().getParent();
+        root.addView(clock, root.indexOfChild(content), lp);
+    }
+
+    /** Keep watching in one line right over the dock's band, lined up with the dock's first tile. */
+    private void placeContinueOverDock() {
+        RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
+        View card = dock == null ? null : dock.itemView.findViewById(R.id.card);
+        if (card == null) return;
+        View item = dock.itemView;
+        // The dock's glass band starts about 14dp above its tiles.
+        float bandTop = item.getTop() + item.getTranslationY() + card.getTop() - 14 * density;
+        float top = grid.getTop() + bandTop - 12 * density - continueRow.heightPx();
+        continueRow.setStartInset(item.getLeft() + card.getLeft());
+        if (continueRow.view.getTranslationY() != top) continueRow.view.setTranslationY(top);
+    }
+
+    /**
+     * Immersive: the now playing card stands at the right, under Settings and Apps and over Keep watching (or the dock),
+     * clear of the clock in the middle.
+     */
+    private void placeNowPlayingImmersive() {
+        int[] at = new int[2], base = new int[2];
+        root.getLocationInWindow(base);
+        View bar = findViewById(R.id.topButtons);
+        bar.getLocationInWindow(at);
+        float top = at[1] - base[1] - bar.getTranslationY() + bar.getHeight();
+        float right = root.getWidth() - ((View) headerRow().getParent()).getPaddingEnd();
+        float bottom = root.getHeight() * 0.6f;
+        if (continueRow != null && continueRow.shown()) {
+            continueRow.view.getLocationInWindow(at);
+            bottom = at[1] - base[1];
+        } else {
+            RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
+            View tile = dock == null ? null : dock.itemView.findViewById(R.id.card);
+            if (tile != null) {
+                dock.itemView.getLocationInWindow(at);
+                bottom = at[1] - base[1] - dock.itemView.getTranslationY() + tile.getTop() - 14 * density;
+            }
+        }
+        float gap = 18 * density;
+        nowPlayingCard.fitHeight(Math.round(bottom - top - 2 * gap), Math.round(150 * density));
+        float y = top + gap;
+        float x = right - nowPlayingCard.targetWidth();
+        if (nowPlayingCard.getTranslationY() != y) nowPlayingCard.setTranslationY(y);
+        if (nowPlayingCard.getTranslationX() != x) nowPlayingCard.setTranslationX(x);
+    }
+
     // ---- now playing -------------------------------------------------------------------------------
 
     /**
@@ -2774,6 +2911,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void placeNowPlaying() {
         if (nowPlayingCard.getVisibility() != View.VISIBLE || !atTop(grid)) return;
+        if (immersive) {
+            placeNowPlayingImmersive();
+            return;
+        }
         int[] at = new int[2], base = new int[2];
         root.getLocationInWindow(base);
         View bar = findViewById(R.id.topButtons);
@@ -2872,7 +3013,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         float shownBottom = shownTop + focused.getHeight() + (item == null && focused.getHeight() < 60 * density
                 ? 180 * density : 64 * density);
         int dy = 0;
-        if (shownBottom > grid.getHeight() - 16 * density) dy = (int) (shownBottom - (grid.getHeight() - 16 * density));
+        if (immersive) {
+            // the row stands over the dock, always in view
+        } else if (shownBottom > grid.getHeight() - 16 * density) dy = (int) (shownBottom - (grid.getHeight() - 16 * density));
         else if (shownTop < 60 * density) dy = (int) (shownTop - 60 * density);
         if (dy < 0) dy = Math.max(dy, -grid.computeVerticalScrollOffset());
         if (dy != 0) {
@@ -3220,7 +3363,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         // continue_watching: Down from the dock and Up from the grid's first row stop at the row between them.
         if (continueRow != null && continueRow.shown() && !reordering) {
-            boolean intoRow = keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? position < COLUMNS
+            boolean intoRow = immersive ? keyCode == KeyEvent.KEYCODE_DPAD_UP && position < COLUMNS
+                    : keyCode == KeyEvent.KEYCODE_DPAD_DOWN ? position < COLUMNS
                     : position >= COLUMNS && GridRows.up(position, COLUMNS, GRID_COLUMNS) < COLUMNS;
             if (intoRow && continueRow.focusNearest(tileScreenX(position))) {
                 grid.playSoundEffect(keyCode == KeyEvent.KEYCODE_DPAD_UP
@@ -3504,7 +3648,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void updateClockVisibility() {
         boolean valid = System.currentTimeMillis() >= TIME_VALID_AFTER_MS;
-        clockBlock.setVisibility(valid ? View.VISIBLE : View.INVISIBLE);
+        // immersive_home: the header's clock stays laid out but unseen; ImmersiveClock shows the time instead.
+        clockBlock.setVisibility(valid && !immersive ? View.VISIBLE : View.INVISIBLE);
+        if (immersiveClock != null) immersiveClock.setVisibility(valid ? View.VISIBLE : View.INVISIBLE);
         handler.removeCallbacks(clockCheck);
         if (valid) {
             updateGreeting();
