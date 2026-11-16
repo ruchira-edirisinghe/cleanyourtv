@@ -2989,7 +2989,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         stats.setVisibility(View.GONE);
         android.graphics.Typeface time = UiFont.get(this, R.string.font_light);
         android.graphics.Typeface date = UiFont.get(this, R.string.font_medium);
-        ImmersiveClock clock = new ImmersiveClock(this, date, time, 172f, clockFormat);
+        ImmersiveClock clock = new ImmersiveClock(this, date, time, 155f, clockFormat);
         immersiveClock = clock;
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
