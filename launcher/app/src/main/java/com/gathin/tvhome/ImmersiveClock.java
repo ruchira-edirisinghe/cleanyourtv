@@ -107,6 +107,20 @@ final class ImmersiveClock extends View {
         intro.start();
     }
 
+    /**
+     * Over a video (the screensaver plays on its own surface under the window, so there is no picture in the window
+     * to blend with): the same type as soft, slightly see-through white with a gentle shadow. The view may then be
+     * faded like any other.
+     */
+    void overVideo() {
+        blend.setXfermode(null);
+        blendAlpha = 0xE0;
+        blend.setAlpha(blendAlpha);
+        blend.setShadowLayer(18f * density, 0f, 2f * density, 0x4D000000);
+        frostAlpha = 0;
+        invalidate();
+    }
+
     /** Ends the intro at once (the TV went to sleep or Home was left mid-way). */
     void finishIntro() {
         if (intro != null) intro.end();
