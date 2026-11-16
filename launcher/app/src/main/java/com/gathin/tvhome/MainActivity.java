@@ -168,6 +168,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** config.xml cinematic_white_focus: the cinematic shelf keeps the white highlight. */
     private boolean cinematicWhiteFocus;
     private ImageView heroArt;
+    /** Under heroArt while one picture changes to the next: holds the old one, so the new one fades in over it. */
+    private ImageView heroArtBack;
     /** config.xml cinematic_dots: false leaves the dock position dots out of the cinematic shelf. */
     private boolean heroDotsShown = true;
     /** The artwork's opacity behind the cinematic shelf (config.xml cinematic_art); 0 leaves it out. */
@@ -590,6 +592,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroMeta = findViewById(R.id.heroMeta);
         heroDots = findViewById(R.id.heroDots);
         heroArt = findViewById(R.id.heroArt);
+        setUpHeroArtBack();
         cinematic = cfg.cinematicHome;
         glowStyle = cfg.glowStyle;
         heroDotsShown = cfg.cinematicDots;
@@ -1337,6 +1340,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             ambient.setAlpha(0f);
             heroArt.animate().cancel();
             heroArt.setAlpha(0f);
+            dropHeroBack();
         }
         if (rebuild) reloadTiles();
         if (animate && entrance && animations && !reducedMotion) {
@@ -2359,8 +2363,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         paint.setShader(new LinearGradient(rtl ? w : 0, 0, rtl ? 0 : w, 0,
                 new int[]{0xD1060406, 0x59060406, 0x00060406}, new float[]{0f, 0.42f, 0.7f}, Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, w, h, paint);
+        // immersive_home: the rows sit on the dock's band and the cards, so the wallpaper only needs a light shade under them.
         paint.setShader(new LinearGradient(0, 0, 0, h,
-                new int[]{0x00060406, 0x00060406, 0xDB060406, 0xFF060406}, new float[]{0f, 0.28f, 0.58f, 0.76f},
+                immersive ? new int[]{0x00060406, 0x00060406, 0x59060406, 0x99060406}
+                        : new int[]{0x00060406, 0x00060406, 0xDB060406, 0xFF060406},
+                immersive ? new float[]{0f, 0.42f, 0.74f, 1f} : new float[]{0f, 0.28f, 0.58f, 0.76f},
                 Shader.TileMode.CLAMP));
         canvas.drawRect(0, 0, w, h, paint);
         if (heroBanners) {
@@ -2412,10 +2419,67 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             fadeHeroArt(600, target);
             return;
         }
-        heroArt.animate().alpha(0f).setDuration(isBanner ? 180 : 140).withEndAction(() -> {
-            setHeroImage(next, isBanner);
-            heroArt.animate().alpha(target).setDuration(isBanner ? 520 : 420).start();
-        }).start();
+        crossfadeHero(next, isBanner, target, isBanner ? 460 : 400);
+    }
+
+    /** A second ImageView right under heroArt, with the same size; empty and gone until a crossfade needs it. */
+    private void setUpHeroArtBack() {
+        ViewGroup parent = (ViewGroup) heroArt.getParent();
+        heroArtBack = new ImageView(this);
+        heroArtBack.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        heroArtBack.forceHasOverlappingRendering(false);
+        heroArtBack.setVisibility(View.GONE);
+        parent.addView(heroArtBack, parent.indexOfChild(heroArt),
+                new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+    }
+
+    /**
+     * One picture to the next without the wallpaper showing in between: the old one stays under (heroArtBack) while
+     * the new one fades in over it, then the old one goes. A full picture (target 1) covers it, so it only goes at the
+     * end; a see-through artwork fades it out at the same time.
+     */
+    private void crossfadeHero(Bitmap next, boolean banner, float target, int ms) {
+        heroArt.animate().cancel();
+        float shown = heroArt.getVisibility() == View.VISIBLE ? heroArt.getAlpha() : 0f;
+        Drawable old = heroArt.getDrawable();
+        boolean backShowing = heroArtBack.getVisibility() == View.VISIBLE && heroArtBack.getAlpha() > 0.05f;
+        if (!(old instanceof BitmapDrawable) || (shown < 0.05f && !backShowing)) {
+            dropHeroBack();
+            setHeroImage(next, banner);
+            fadeHeroArt(ms, target);
+            return;
+        }
+        heroArtBack.animate().cancel();
+        // Half way through another crossfade the older picture under it is still the one mostly seen: keep it.
+        if (!backShowing || shown >= 0.5f) {
+            heroArtBack.setScaleType(heroArt.getScaleType());
+            heroArtBack.setImageBitmap(((BitmapDrawable) old).getBitmap());
+            heroArtBack.setAlpha(shown);
+        }
+        heroArtBack.setScaleX(heroArt.getScaleX());
+        heroArtBack.setScaleY(heroArt.getScaleY());
+        heroArtBack.setVisibility(View.VISIBLE);
+        setHeroImage(next, banner);
+        heroArt.setVisibility(View.VISIBLE);
+        heroArt.setAlpha(0f);
+        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
+        if (target < 0.99f) heroArtBack.animate().alpha(0f).setDuration(ms).setInterpolator(ease).start();
+        heroArt.animate().alpha(target).setDuration(ms).setInterpolator(ease).withEndAction(this::dropHeroBack).start();
+    }
+
+    private void dropHeroBack() {
+        if (heroArtBack == null) return;
+        heroArtBack.animate().cancel();
+        heroArtBack.setVisibility(View.GONE);
+        heroArtBack.setImageDrawable(null);
+    }
+
+    /** The old picture under a crossfade goes with heroArt when that fades away (to the wallpaper). */
+    private void fadeHeroBack(int ms) {
+        if (heroArtBack == null || heroArtBack.getVisibility() != View.VISIBLE) return;
+        heroArtBack.animate().cancel();
+        if (!animations || ms <= 0) dropHeroBack();
+        else heroArtBack.animate().alpha(0f).setDuration(ms).withEndAction(this::dropHeroBack).start();
     }
 
     /** The softened artwork is stretched over the screen; a picture keeps its proportions and fills it. */
@@ -2452,6 +2516,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private void fadeHeroArt(int ms, float target) {
+        if (target <= 0f) fadeHeroBack(ms);
         if (!animations) heroArt.setAlpha(target);
         else heroArt.animate().alpha(target).setDuration(reducedMotion ? Math.min(ms, Motion.REDUCED_MS) : ms).start();
     }
@@ -2592,6 +2657,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         hero.setAlpha(0f);
         heroArt.animate().cancel();
         heroArt.setAlpha(0f);
+        dropHeroBack();
         heroShown = false;
         if (!ambientGlow) return;
         if (!animations || reducedMotion) {
@@ -3169,8 +3235,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         grid.getLocationInWindow(spot);
         float cardRight = spot[0] - origin[0] + grid.getWidth() - Math.max(0, baseGridPadRight);
-        nowPlayingCard.fitHeight(Math.round(bandBottom - cardTop), songCardWidth());
-        float cardX = cardRight - nowPlayingCard.targetWidth();
+        // A square as tall as the space, the cover filling it; at the right, so what is left of the card's
+        // column widens the gap to the dock and Continue watching.
+        int size = Math.min(Math.round(bandBottom - cardTop), songCardWidth());
+        nowPlayingCard.fitSquare(size);
+        float cardX = cardRight - size;
         if (nowPlayingCard.getTranslationY() != cardTop) nowPlayingCard.setTranslationY(cardTop);
         if (nowPlayingCard.getTranslationX() != cardX) nowPlayingCard.setTranslationX(cardX);
     }
@@ -3182,7 +3251,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private int songGap() {
-        return Math.round(20 * density);
+        return Math.round(44 * density);
     }
 
     /**
@@ -3406,17 +3475,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 fadeHeroArt(300, 0f);
                 return;
             }
-            heroArt.setVisibility(View.VISIBLE);
             heroArtKey = key;
-            if (!motion || heroArt.getAlpha() == 0f) {
+            if (!motion) {
+                heroArt.setVisibility(View.VISIBLE);
                 setHeroImage(bitmap, true);
                 fadeHeroArt(500, 1f);
                 return;
             }
-            heroArt.animate().alpha(0f).setDuration(180).withEndAction(() -> {
-                setHeroImage(bitmap, true);
-                heroArt.animate().alpha(1f).setDuration(520).start();
-            }).start();
+            crossfadeHero(bitmap, true, 1f, 460);
         });
     }
 
@@ -3493,10 +3559,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             hero.animate().alpha(0f).setDuration(160).start();
             if (ambientGlow) ambient.animate().alpha(0f).setDuration(300).start();
             heroArt.animate().alpha(0f).setDuration(300).start();
+            fadeHeroBack(300);
         } else {
             hero.setAlpha(0f);
             ambient.setAlpha(0f);
             heroArt.setAlpha(0f);
+            dropHeroBack();
         }
     }
 
