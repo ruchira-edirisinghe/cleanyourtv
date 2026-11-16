@@ -287,6 +287,32 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** immersive_home: the lock-screen Home (ImmersiveClock in the middle, Keep watching over the dock). */
     private boolean immersive;
     private ImmersiveClock immersiveClock;
+    /** immersive_home: the "nothing selected" stop between the top buttons and Continue watching, the wallpaper's view. */
+    private View idleAnchor;
+    /** The next focus after the tiles load goes to idleAnchor instead of the last tile (start, and the TV switched on). */
+    private boolean idleNext;
+    /** immersive_home: the non-tile view that had focus when Home was left, given back by restoreFocus. */
+    private View resumeFocus;
+    /** The intro waits for Home to come up after the TV is switched on (SystemClock.elapsedRealtime of the wake). */
+    private long introAt = -1;
+    /** Continue watching and the dock are hidden, waiting for the intro (or a focus on them) to bring them up. */
+    private boolean rowsHidden;
+    /** The cinematic shade and its configured alpha, faded on the drawable (no full-screen offscreen layer). */
+    private Drawable scrimShade;
+    private int scrimShadeAlpha;
+    private ValueAnimator scrimFade;
+    /** immersive_home while a song plays: its card stands at the right of Continue watching and the dock. */
+    private boolean songMode;
+    private int baseGridPadRight = -1;
+    private View introCurtain;
+    private final BroadcastReceiver screenOnReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            wallpaperPlayer.advance();
+            introAt = SystemClock.elapsedRealtime();
+            if (resumed) startIdleIntro();
+        }
+    };
     /** The highlight springs past its target (config.xml, focus_overshoot); false goes straight there. */
     private boolean focusOvershoot;
     /** Festive skin from the theme (see Festival); applied while it is active today. */
@@ -754,13 +780,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // Item height follows the tile size, which follows the columns and the rows that must fit (AppAdapter.tileWidthPx).
             int inner = (r - l) - grid.getPaddingLeft() - grid.getPaddingRight();
             int tileW = AppAdapter.tileWidthPx(inner, h, COLUMNS, rowsBelowDock, cfg.dockTitle, cfg.dockRow, density);
-            int itemH = AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(tileW), density);
+            int itemH = songMode ? AppAdapter.itemHeightPx(AppAdapter.squareDockPx(inner, COLUMNS, density), density)
+                    : AppAdapter.itemHeightPx(AppAdapter.tileHeightPx(tileW), density);
             int dockRow = itemH + (int) (AppAdapter.DOCK_EXTRA_DP * density);   // item height plus DockDecoration offsets
             int gridRows = itemH * rowsBelowDock;
             // Keep the hero below the header when the library is enabled on a short screen,
             // even when the theme requests an extra visible row below the dock.
             int shelfClearance = cfg.appLibrary ? hero.getMeasuredHeight() + (int) (40 * density) : 0;
-            int want = Math.max(shelfClearance, h - dockRow - gridRows - (int) (AppAdapter.BOTTOM_ROOM_DP * density));
+            // immersive_home: the dock sits lower, close to the bottom edge.
+            float bottomRoom = immersive ? AppAdapter.BOTTOM_ROOM_DP - 44 : AppAdapter.BOTTOM_ROOM_DP;
+            int want = Math.max(shelfClearance, h - dockRow - gridRows - (int) (bottomRoom * density));
             // Where the rows cannot fit even at the smallest tile (3 rows with the title on), the title keeps its
             // room above the dock and the last rows run off the bottom instead of the title drawing over the clock.
             if (MainActivity.this.dockRow && cfg.dockTitle && rowsBelowDock > 0) want = Math.max(want, (int) (AppAdapter.TITLE_ROOM_DP * density));
@@ -771,6 +800,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (singleRow && !cfg.alwaysShowNames) want += (int) (29 * density);
             if (grid.getPaddingTop() != want) {
                 grid.setPadding(grid.getPaddingLeft(), want, grid.getPaddingRight(), grid.getPaddingBottom());
+                if (immersive && (!grid.hasFocus() || lastFocused < COLUMNS)) grid.post(MainActivity.this::parkDock);
                 // A vertical grid parks the dock on the new padding line by scrolling (onTileFocused); a sideways
                 // row cannot scroll vertically, and the layout request made from inside this layout pass is
                 // dropped, so lay the row out again on the next frame. The glass and the title were placed for the
@@ -959,8 +989,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return shownChild(cells, false) == row;
                 if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
                     if (shownChild(cells, true) != row) return false;
-                    if (immersive && continueRow != null && continueRow.shown()
-                            && continueRow.focusNearest(screenCenterX(v))) return true;
+                    if (immersive && idleAnchor != null && idleAnchor.requestFocus()) return true;
                     focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                     return true;
                 }
@@ -1001,7 +1030,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         topBarGrid = (cfg.topBarGrid || immersive) && !cfg.topMenu;
         if (topBarGrid) gridTopButtons(cfg.liquidGlass, immersive ? 8 : cfg.topBarGridColumns);
         if (immersive && topBarGrid) splitTopButtons();
-        if (immersive) setUpImmersiveClock();
+        if (immersive) {
+            setUpImmersiveClock();
+            setUpIdleAnchor();
+            idleNext = savedInstanceState == null;
+            if (savedInstanceState == null) introAt = SystemClock.elapsedRealtime();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                registerReceiver(screenOnReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON), Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                registerReceiver(screenOnReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
+            }
+        }
         if (cfg.nowPlaying) setUpNowPlaying(cfg);
 
         // Hide the glass when focus leaves the tiles.
@@ -1134,6 +1173,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.scrollToPosition(0);
         lastFocused = 0;
         lastFocusedKey = adapter.getItemCount() > 0 ? adapter.keyAt(0) : null;
+        if (immersive && idleAnchor != null) {
+            // immersive_home: Home goes to the wallpaper with nothing selected. Coming back from an app, onStart has
+            // already run (so stopped is false), and onResume's refocus would put the last tile back: ask it for the
+            // wallpaper instead. Already in front, go there now.
+            if (!resumed) {
+                idleNext = true;
+                tileRefresh.onHomeAgain();
+            } else {
+                grid.post(() -> idleAnchor.requestFocus());
+            }
+            return;
+        }
         if (stopped) {
             tileRefresh.onHomeAgain();
         } else {
@@ -1177,6 +1228,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         restartIdleClock();
         promptsPaused = false;
+        if (immersive) startIdleIntro();
         if (grid.getAdapter() == null) grid.setAdapter(adapter);   // dropped by onTrimMemory
         switch (tileRefresh.onResume(packagesChangedSinceRebuild())) {
             case REBUILD:
@@ -1358,7 +1410,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         grid.post(() -> {
             int pos = adapter.positionOf(returnKey);
             if (returnToLibrary || libraryFocusPending) focusLibrary();
-            else focusTile(pos >= 0 ? pos : returnSlot);
+            else if (immersive && idleNext) {
+                idleNext = false;
+                resumeFocus = null;
+                lastFocused = pos >= 0 ? pos : Math.max(0, returnSlot);
+                idleAnchor.requestFocus();
+            } else if (resumeFocus != null && resumeFocus.isShown() && resumeFocus.requestFocus()) {
+                resumeFocus = null;
+                lastFocused = pos >= 0 ? pos : Math.max(0, returnSlot);
+            } else {
+                resumeFocus = null;
+                focusTile(pos >= 0 ? pos : returnSlot);
+            }
             tilesReady = true;
             startPendingSettingsReorder();
             showCardPrompt();
@@ -1381,6 +1444,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onPause() {
         super.onPause();
         resumed = false;
+        // immersive_home: a top button (Wi-Fi, Inputs, Settings, Apps) or the wallpaper stop that had focus gets it
+        // back on return, instead of the dock tile restoreFocus would pick.
+        View focus = getCurrentFocus();
+        View bar = findViewById(R.id.topButtons);
+        resumeFocus = immersive && focus != null && (focus == idleAnchor || focus == nowPlayingCard
+                || inside(focus, bar)) ? focus : null;
         // No UP reaches a paused Home, so a vendor-key hold it saw go down would still open its app later.
         // Only Home's own share is dropped: a key service that saw the same DOWN keeps its hold.
         RemoteKeys.release(this);
@@ -1410,6 +1479,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onStop() {
         super.onStop();
         started = false;
+        if (immersiveClock != null) immersiveClock.finishIntro();
         unregisterReceiver(timeReceiver);
         clockRefresh.stop();
         handler.removeCallbacks(clockCheck);
@@ -1468,6 +1538,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (gameDay != null) gameDay.shutdown();
         unregisterReceiver(packageReceiver);
         if (openOnStartOnWake) unregisterReceiver(wakeReceiver);
+        if (immersive) unregisterReceiver(screenOnReceiver);
         wallpaperPlayer.close();
         ConnectivityManager cm = getSystemService(ConnectivityManager.class);
         TvInputManager tim = (TvInputManager) getSystemService(TV_INPUT_SERVICE);
@@ -1844,6 +1915,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     @Override
     @SuppressWarnings("deprecation")
     public void onBackPressed() {
+        // immersive_home: Back goes to the wallpaper, with nothing selected.
+        if (immersive && idleAnchor != null && !idleAnchor.hasFocus()) {
+            idleAnchor.requestFocus();
+            return;
+        }
         // Home screen: Back goes nowhere, unless back_opens_clock is on.
         if (backOpensClock) startActivity(new Intent(this, ClockActivity.class));
     }
@@ -2264,6 +2340,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Drawable shade = scrimDrawable();
         // On the bitmap's paint, not the view: a view's alpha would draw the full screen through an offscreen buffer.
         shade.setAlpha(scrimPercent * 255 / 100);
+        scrimShade = shade;
+        scrimShadeAlpha = scrimPercent * 255 / 100;
         scrim.setBackground(shade);
         scrim.setVisibility(View.VISIBLE);
     }
@@ -2558,7 +2636,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             @Override
             public void onContinueUp(float screenX) {
                 if (immersive) {
-                    focusNearestTopButton(screenX);
+                    idleAnchor.requestFocus();
                     grid.playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
                     return;
                 }
@@ -2768,7 +2846,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (bar.getChildCount() == 0) return;
         LinearLayout row = (LinearLayout) bar.getChildAt(0);
         View content = (View) headerRow().getParent();
-        View after = btnWifi.getParent() == row && btnWifi.getVisibility() == View.VISIBLE ? btnWifi : btnInputs;
+        // Wi-Fi then Inputs at the left, Apps then Settings at the right.
+        swapInRow(row, btnInputs, btnWifi);
+        swapInRow(row, findViewById(R.id.btnSettings), findViewById(R.id.btnApps));
+        View after = btnWifi.getParent() == row && btnWifi.getVisibility() == View.VISIBLE
+                && row.indexOfChild(btnWifi) > row.indexOfChild(btnInputs) ? btnWifi : btnInputs;
         View spacer = new View(this);
         spacer.setFocusable(false);
         spacer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -2783,6 +2865,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         flp.setMarginStart(content.getPaddingStart());
         flp.setMarginEnd(content.getPaddingEnd());
         bar.setLayoutParams(flp);
+    }
+
+    /** Swaps two children of a row; the slots keep their layout params (margins), so the gaps stay where they were. */
+    private static void swapInRow(LinearLayout row, View a, View b) {
+        if (a == null || b == null || a.getParent() != row || b.getParent() != row) return;
+        int i = row.indexOfChild(a), j = row.indexOfChild(b);
+        if (i > j) {
+            View t = a; a = b; b = t;
+            int k = i; i = j; j = k;
+        }
+        ViewGroup.LayoutParams first = a.getLayoutParams(), second = b.getLayoutParams();
+        row.removeViewAt(j);
+        row.removeViewAt(i);
+        row.addView(b, i, first);
+        row.addView(a, j, second);
     }
 
     /** The middle of a view on the screen, across. */
@@ -2827,6 +2924,197 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         root.addView(clock, root.indexOfChild(content), lp);
     }
 
+    /**
+     * The "nothing selected" stop: an invisible focusable view. Focused, the highlight and the app's picture go and the
+     * wallpaper shows under the clock; Up goes to the top buttons, Down to Continue watching (or the dock).
+     */
+    private void setUpIdleAnchor() {
+        idleAnchor = new View(this);
+        idleAnchor.setFocusable(true);
+        idleAnchor.setDefaultFocusHighlightEnabled(false);
+        idleAnchor.setContentDescription(getString(R.string.app_name));
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(1, 1, Gravity.CENTER);
+        root.addView(idleAnchor, lp);
+        idleAnchor.setOnFocusChangeListener((v, has) -> {
+            if (has) showIdle();
+        });
+        root.getViewTreeObserver().addOnGlobalFocusChangeListener((old, now) -> {
+            if (rowsHidden && now != null && (inside(now, grid)
+                    || (continueRow != null && inside(now, continueRow.view)))) showRows();
+        });
+        idleAnchor.setOnKeyListener((v, keyCode, event) -> {
+            if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+            float middle = screenCenterX(root);
+            switch (keyCode) {
+                case KeyEvent.KEYCODE_DPAD_UP:
+                    focusNearestTopButton(middle);
+                    grid.playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_DOWN:
+                    if (continueRow == null || !continueRow.shown() || !continueRow.focusNearest(middle)) {
+                        int dock = Math.min(adapter.dockFilled(), COLUMNS);
+                        focusTile(lastFocused >= 0 && lastFocused < dock ? lastFocused : 0);
+                    }
+                    grid.playSoundEffect(SoundEffectConstants.NAVIGATION_DOWN);
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                case KeyEvent.KEYCODE_DPAD_RIGHT:
+                case KeyEvent.KEYCODE_DPAD_CENTER:
+                case KeyEvent.KEYCODE_ENTER:
+                    return true;
+                default:
+                    return false;
+            }
+        });
+    }
+
+    /** Nothing selected: no highlight, no glow, no app picture; the wallpaper and the clock. */
+    private void showIdle() {
+        hideGlass();
+        hideHero();
+        continueCoverKey = null;
+        heroArt.animate().cancel();
+        fadeHeroArt(520, 0f);
+        grid.post(this::parkDock);
+    }
+
+    /** Continue watching and the dock step away (the intro brings them back up with showRows). */
+    private void hideRows(boolean now) {
+        rowsHidden = true;
+        float drop = 28 * density;
+        boolean motion = !now && animations && !reducedMotion;
+        fadeScrim(0, motion ? 640 : 0);
+        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
+        View row = continueRow != null ? continueRow.view : null;
+        for (View v : new View[]{grid, row}) {
+            if (v == null) continue;
+            v.animate().cancel();
+            // The row's translation is its place (placeContinueOverDock), so it only fades; the grid also sinks.
+            float y = v == grid ? drop : v.getTranslationY();
+            if (motion) {
+                v.animate().alpha(0f).translationY(y).setStartDelay(0).setDuration(420).setInterpolator(ease)
+                        .withLayer().start();
+            } else {
+                v.setAlpha(0f);
+                v.setTranslationY(y);
+            }
+        }
+    }
+
+    /** Continue watching and the dock rise back in, one after the other, and the shade returns under them. */
+    private void showRows() {
+        if (!rowsHidden) return;
+        rowsHidden = false;
+        boolean motion = animations && !reducedMotion;
+        fadeScrim(scrimShadeAlpha, motion ? 520 : 0);
+        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f);
+        View row = continueRow != null ? continueRow.view : null;
+        long delay = 0;
+        for (View v : new View[]{row, grid}) {
+            if (v == null) continue;
+            v.animate().cancel();
+            float y = v == grid ? 0f : v.getTranslationY();
+            if (motion) {
+                v.animate().alpha(1f).translationY(y).setStartDelay(delay).setDuration(620).setInterpolator(ease)
+                        .withLayer().start();
+                delay += 70;
+            } else {
+                v.setAlpha(1f);
+                v.setTranslationY(y);
+            }
+        }
+    }
+
+    private void fadeScrim(int to, long ms) {
+        if (scrimShade == null) return;
+        if (scrimFade != null) scrimFade.cancel();
+        if (ms <= 0) {
+            scrimShade.setAlpha(to);
+            return;
+        }
+        scrimFade = ValueAnimator.ofInt(scrimShade.getAlpha(), to);
+        scrimFade.setDuration(ms);
+        scrimFade.addUpdateListener(a -> scrimShade.setAlpha((int) a.getAnimatedValue()));
+        scrimFade.start();
+    }
+
+    private static boolean inside(View v, View parent) {
+        for (Object p = v; p instanceof View; p = ((View) p).getParent()) {
+            if (p == parent) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Put the dock on its line at the bottom with no tile focused. Focusing a dock tile scrolls it there
+     * (onTileFocused); the idle stop focuses none, and the grid keeps its first layout's offset when its top padding
+     * grows, which left the dock high on the screen.
+     */
+    private void parkDock() {
+        if (singleRow || !dockRow || grid.getLayoutManager() == null) return;
+        View first = grid.getLayoutManager().findViewByPosition(0);
+        if (first == null) return;
+        int dy = first.getTop() - (int) (6 * density) - grid.getPaddingTop();
+        if (Math.abs(dy) > (int) (2 * density)) grid.scrollBy(0, dy);
+    }
+
+    /** After the TV is switched on (or Home's first start): the wallpaper with nothing selected, and the intro. */
+    private void startIdleIntro() {
+        if (introAt < 0) return;
+        boolean recent = SystemClock.elapsedRealtime() - introAt < 20_000L;
+        introAt = -1;
+        if (!recent) return;
+        if (tilesReady && idleAnchor != null) idleAnchor.requestFocus();
+        else idleNext = true;
+        playIntro();
+    }
+
+    /**
+     * The intro, in the spirit of Apple's: the picture comes up out of black while settling from a slight zoom, then the
+     * date and the time rise into it, the top buttons ease in, and Continue watching and the dock rise from below, one
+     * after the other. Only alpha, scale and translation move, so it stays smooth on the TV's GPU.
+     */
+    private void playIntro() {
+        if (!animations || reducedMotion) return;
+        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f);
+        android.view.animation.Interpolator soft = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
+        if (introCurtain == null) {
+            introCurtain = new View(this);
+            introCurtain.setBackgroundColor(Color.BLACK);
+            introCurtain.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            root.addView(introCurtain, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+        introCurtain.animate().cancel();
+        introCurtain.bringToFront();
+        introCurtain.setVisibility(View.VISIBLE);
+        introCurtain.setAlpha(1f);
+        introCurtain.animate().alpha(0f).setStartDelay(120).setDuration(1100).setInterpolator(soft)
+                .withEndAction(() -> introCurtain.setVisibility(View.GONE)).start();
+
+        View wall = wallpaperPlayer.view();
+        for (View picture : new View[]{wall, heroArt}) {
+            if (picture == null) continue;
+            picture.animate().cancel();
+            picture.setScaleX(1.08f);
+            picture.setScaleY(1.08f);
+            picture.animate().scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(2400).setInterpolator(ease).start();
+        }
+        if (immersiveClock != null) immersiveClock.playIntro(380, 1400);
+
+        View bar = findViewById(R.id.topButtons);
+        bar.animate().cancel();
+        bar.setAlpha(0f);
+        bar.setScaleX(0.96f);
+        bar.setScaleY(0.96f);
+        bar.animate().alpha(1f).scaleX(1f).scaleY(1f).setStartDelay(820).setDuration(800).setInterpolator(ease).start();
+
+        // Continue watching and then the dock rise in after the clock; the shade stays as it is.
+        hideRows(true);
+        fadeScrim(scrimShadeAlpha, 0);
+        root.postDelayed(this::showRows, 950);
+    }
+
     /** Keep watching in one line right over the dock's band, lined up with the dock's first tile. */
     private void placeContinueOverDock() {
         RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
@@ -2836,7 +3124,27 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // The dock's glass band starts about 14dp above its tiles.
         float bandTop = item.getTop() + item.getTranslationY() + card.getTop() - 14 * density;
         float top = grid.getTop() + bandTop - 12 * density - continueRow.heightPx();
-        continueRow.setStartInset(item.getLeft() + card.getLeft());
+        // The row runs from screen edge to screen edge, so a zoomed card at either end is never cut off and the cards
+        // scroll out past the edges; the strip's inset still lines the first card up with the dock's first tile.
+        View wrapper = (View) continueRow.view.getParent();
+        int left = 0;
+        for (View v = wrapper; v != null && v != root; v = v.getParent() instanceof View ? (View) v.getParent() : null) {
+            left += v.getLeft();
+            if (v instanceof ViewGroup) ((ViewGroup) v).setClipChildren(false);
+        }
+        int right = songMode ? songCardWidth() + songGap() : -(root.getWidth() - left - wrapper.getWidth());
+        ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) continueRow.view.getLayoutParams();
+        if (lp.leftMargin != -left || lp.rightMargin != right) {
+            lp.leftMargin = -left;
+            lp.rightMargin = right;
+            continueRow.view.setLayoutParams(lp);
+        }
+        // In line with the dock's glass band, not its first tile: the band reaches out up to 22dp past the tiles
+        // (DockDecoration), so the row and its header start where the band starts.
+        int tileLeft = item.getLeft() + card.getLeft();
+        int inset = left + tileLeft - Math.round(Math.max(0f, Math.min(22 * density, tileLeft - density)));
+        continueRow.setStartInset(inset);
+        continueRow.setEndInset(songMode ? Math.round(ContinueRow.FADE_DP * density) : inset);
         if (continueRow.view.getTranslationY() != top) continueRow.view.setTranslationY(top);
     }
 
@@ -2845,30 +3153,65 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * clear of the clock in the middle.
      */
     private void placeNowPlayingImmersive() {
-        int[] at = new int[2], base = new int[2];
-        root.getLocationInWindow(base);
-        View bar = findViewById(R.id.topButtons);
-        bar.getLocationInWindow(at);
-        float top = at[1] - base[1] - bar.getTranslationY() + bar.getHeight();
-        float right = root.getWidth() - ((View) headerRow().getParent()).getPaddingEnd();
-        float bottom = root.getHeight() * 0.6f;
+        RecyclerView.ViewHolder dockHolder = grid.findViewHolderForAdapterPosition(0);
+        View dockTile = dockHolder == null ? null : dockHolder.itemView.findViewById(R.id.card);
+        if (dockTile == null) return;
+        int[] spot = new int[2], origin = new int[2];
+        root.getLocationInWindow(origin);
+        dockHolder.itemView.getLocationInWindow(spot);
+        float tileTop = spot[1] - origin[1] - dockHolder.itemView.getTranslationY() + dockTile.getTop();
+        float bandBottom = tileTop + dockTile.getHeight() + 14 * density;
+        float cardTop = tileTop - 14 * density - 220 * density;
         if (continueRow != null && continueRow.shown()) {
-            continueRow.view.getLocationInWindow(at);
-            bottom = at[1] - base[1];
-        } else {
-            RecyclerView.ViewHolder dock = grid.findViewHolderForAdapterPosition(0);
-            View tile = dock == null ? null : dock.itemView.findViewById(R.id.card);
-            if (tile != null) {
-                dock.itemView.getLocationInWindow(at);
-                bottom = at[1] - base[1] - dock.itemView.getTranslationY() + tile.getTop() - 14 * density;
-            }
+            continueRow.view.getLocationInWindow(spot);
+            // Level with the top of the Continue watching cards, under the row's header.
+            cardTop = spot[1] - origin[1] + continueRow.cardsTop();
         }
-        float gap = 18 * density;
-        nowPlayingCard.fitHeight(Math.round(bottom - top - 2 * gap), Math.round(150 * density));
-        float y = top + gap;
-        float x = right - nowPlayingCard.targetWidth();
-        if (nowPlayingCard.getTranslationY() != y) nowPlayingCard.setTranslationY(y);
-        if (nowPlayingCard.getTranslationX() != x) nowPlayingCard.setTranslationX(x);
+        grid.getLocationInWindow(spot);
+        float cardRight = spot[0] - origin[0] + grid.getWidth() - Math.max(0, baseGridPadRight);
+        nowPlayingCard.fitHeight(Math.round(bandBottom - cardTop), songCardWidth());
+        float cardX = cardRight - nowPlayingCard.targetWidth();
+        if (nowPlayingCard.getTranslationY() != cardTop) nowPlayingCard.setTranslationY(cardTop);
+        if (nowPlayingCard.getTranslationX() != cardX) nowPlayingCard.setTranslationX(cardX);
+    }
+
+    /** The song's card: as wide as two of the dock's banner columns. */
+    private int songCardWidth() {
+        int inner = grid.getWidth() - grid.getPaddingLeft() - Math.max(0, baseGridPadRight);
+        return 2 * inner / COLUMNS;
+    }
+
+    private int songGap() {
+        return Math.round(20 * density);
+    }
+
+    /**
+     * While a song plays the dock steps aside for its card: the grid's right padding takes the card's width and the
+     * dock's tiles turn into squares that fill what is left; Continue watching ends at the card too.
+     */
+    private void applySongMode(boolean on) {
+        if (songMode == on || grid.getWidth() == 0) return;
+        if (baseGridPadRight < 0) baseGridPadRight = grid.getPaddingRight();
+        if (!on && nowPlayingCard.hasFocus()) focusTile(Math.max(0, Math.min(adapter.dockFilled(), COLUMNS) - 1));
+        int pad = on ? baseGridPadRight + songCardWidth() + songGap() : baseGridPadRight;
+        songMode = on;
+        grid.setPadding(grid.getPaddingLeft(), grid.getPaddingTop(), pad, grid.getPaddingBottom());
+        adapter.setSquareDock(on);
+        grid.post(this::parkDock);
+        placeContinueRow();
+    }
+
+    private void openPlayingApp() {
+        String pkg = nowPlayingCard.playingPackage();
+        if (pkg == null) return;
+        Intent i = getPackageManager().getLeanbackLaunchIntentForPackage(pkg);
+        if (i == null) i = getPackageManager().getLaunchIntentForPackage(pkg);
+        if (i == null) return;
+        i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            startActivity(i);
+        } catch (ActivityNotFoundException ignored) {
+        }
     }
 
     // ---- now playing -------------------------------------------------------------------------------
@@ -2882,6 +3225,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         View content = (View) headerRow().getParent();
         root.addView(nowPlayingCard, root.indexOfChild(content) + 1, nowPlayingCard.params(Gravity.TOP | Gravity.START));
         nowPlaying = new NowPlaying(this, cfg.nowPlayingApps, this::showNowPlaying);
+        if (immersive) {
+            nowPlayingCard.makeFocusable(this::openPlayingApp);
+            nowPlayingCard.setOnKeyListener((v, keyCode, event) -> {
+                if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+                if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+                    focusTile(Math.max(0, Math.min(adapter.dockFilled(), COLUMNS) - 1));
+                    return true;
+                }
+                if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                    idleAnchor.requestFocus();
+                    return true;
+                }
+                return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT || keyCode == KeyEvent.KEYCODE_DPAD_DOWN;
+            });
+        }
         grid.addOnScrollListener(new RecyclerView.OnScrollListener() {
             @Override
             public void onScrolled(@NonNull RecyclerView rv, int dx, int dy) {
@@ -2902,6 +3260,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void showNowPlaying(NowPlaying.Track track) {
         nowPlayingCard.setAllowed(atTop(grid));
         nowPlayingCard.setTrack(track);
+        if (immersive) applySongMode(track != null);
     }
 
     /**
@@ -2910,6 +3269,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * out after a scroll it stays put.
      */
     private void placeNowPlaying() {
+        // A song that came before the grid had its size (Home starting with music on) switches the dock over now.
+        if (immersive && songMode != nowPlayingCard.hasSong()) applySongMode(nowPlayingCard.hasSong());
         if (nowPlayingCard.getVisibility() != View.VISIBLE || !atTop(grid)) return;
         if (immersive) {
             placeNowPlayingImmersive();
@@ -3354,6 +3715,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
             // In the dock, the last app is the row's end: the empty slots after it take no focus.
             if (position < COLUMNS) {
+                if (songMode && keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+                        && position >= Math.min(count, adapter.dockFilled()) - 1 && nowPlayingCard.requestFocus()) {
+                    showIdle();
+                    return true;
+                }
                 return GridNavigation.atHorizontalEdge(position, Math.min(count, adapter.dockFilled()), COLUMNS,
                         rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
             }
@@ -3375,6 +3741,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
             target = GridRows.up(position, COLUMNS, GRID_COLUMNS);
             if (target < 0) {   // dock row: on to the top bar
+                if (immersive && idleAnchor.requestFocus()) {
+                    grid.playSoundEffect(SoundEffectConstants.NAVIGATION_UP);
+                    return true;
+                }
                 if (topBarGrid) return focusColumnEnd();
                 return continueRow != null && upPastContinueRow();
             }

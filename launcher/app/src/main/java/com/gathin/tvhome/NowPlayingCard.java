@@ -218,6 +218,30 @@ final class NowPlayingCard extends FrameLayout {
         if (h > 0) chrome = h - art.getLayoutParams().height;
     }
 
+    /** The playing app's package, or null with no song. */
+    String playingPackage() {
+        return track == null ? null : track.pkg;
+    }
+
+    /**
+     * Home's immersive layout: the card takes focus like a tile (a light ring and a small zoom) and OK opens the app
+     * that plays.
+     */
+    void makeFocusable(Runnable open) {
+        setFocusable(true);
+        setClickable(true);
+        setDefaultFocusHighlightEnabled(false);
+        setOnClickListener(v -> open.run());
+        android.graphics.drawable.GradientDrawable ring = new android.graphics.drawable.GradientDrawable();
+        ring.setCornerRadius(dp(22));
+        ring.setStroke(dp(3), Color.WHITE);
+        ring.setColor(0x00000000);
+        setOnFocusChangeListener((v, has) -> {
+            setForeground(has ? ring : null);
+            animate().scaleX(has ? 1.04f : 1f).scaleY(has ? 1.04f : 1f).setDuration(180).start();
+        });
+    }
+
     /** Shows this song (null: nothing plays, the card fades out). */
     void setTrack(NowPlaying.Track t) {
         NowPlaying.Track before = track;

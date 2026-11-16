@@ -235,6 +235,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final boolean iconGrid;
     /** View type of a grid tile under the dock when it is laid out apart from the dock (grid_columns, icon_grid). */
     private static final int TYPE_GRID = 2;
+    /** immersive_home while a song plays: the dock's tiles as squares, narrower to leave room for the song's card. */
+    private static final int TYPE_SQUARE_DOCK = 3;
+    private boolean squareDock;
     /** icon_grid: the square's share of its column, the icon's share of a plain-icon square, the corner radius. */
     static final float SQUARE_SHARE = 0.64f, SQUARE_ICON_SHARE = 0.60f, SQUARE_RADIUS = 0.23f;
     private final List<Entry> items = new ArrayList<>();
@@ -469,6 +472,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         int width = parent.getWidth() > 0 ? parent.getWidth() : parent.getMeasuredWidth();
         int inner = width - parent.getPaddingLeft() - parent.getPaddingRight();
         if (viewType == TYPE_GRID) return gridHolder(v, inner, density);
+        if (viewType == TYPE_SQUARE_DOCK) return squareDockHolder(v, inner, density);
         int w = tileWidthPx(inner, parent.getHeight(), dockSize, rowsBelowDock, dockTitle, dockRow, density), h = tileHeightPx(w);
         View card = v.findViewById(R.id.card);
         ViewGroup.LayoutParams cardLp = card.getLayoutParams();
@@ -506,6 +510,45 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             View label = v.findViewById(R.id.label);
             label.setPadding(label.getPaddingLeft(), label.getPaddingTop(), label.getPaddingRight(), Math.round(4f * density));
         }
+        return new Holder(v, listener, animations, advancedEffects, reducedMotion, restNameAlpha, focusOvershoot);
+    }
+
+    /** Switches the dock between its banners and squares (the tiles are made again at the new size). */
+    void setSquareDock(boolean on) {
+        if (squareDock == on) return;
+        squareDock = on;
+        notifyItemRangeChanged(0, Math.min(dockSize, getItemCount()));
+    }
+
+    /** The square dock tile's side for a dock this wide: its column less room for the focus zoom and the glass. */
+    static int squareDockPx(int innerWidthPx, int columns, float density) {
+        int cell = innerWidthPx / Math.max(1, columns);
+        return Math.max(Math.round(56 * density), (int) ((cell - 12 * density) / FOCUS_SCALE));
+    }
+
+    /** A square dock tile: the app's square artwork (icons/<package>.png) or its icon, with the grid's light rim. */
+    private Holder squareDockHolder(View v, int inner, float density) {
+        int w = squareDockPx(inner, dockSize, density);
+        View card = v.findViewById(R.id.card);
+        ViewGroup.LayoutParams cardLp = card.getLayoutParams();
+        cardLp.width = w;
+        cardLp.height = w;
+        card.setLayoutParams(cardLp);
+        View name = v.findViewById(R.id.name);
+        ViewGroup.MarginLayoutParams nameLp = (ViewGroup.MarginLayoutParams) name.getLayoutParams();
+        nameLp.width = w;
+        nameLp.topMargin = w + Math.round(7 * density);
+        name.setLayoutParams(nameLp);
+        View icon = v.findViewById(R.id.icon);
+        FrameLayout.LayoutParams iconLp = (FrameLayout.LayoutParams) icon.getLayoutParams();
+        iconLp.width = iconLp.height = Math.round(w * SQUARE_ICON_SHARE);
+        iconLp.bottomMargin = 0;
+        icon.setLayoutParams(iconLp);
+        GradientDrawable rim = new GradientDrawable();
+        rim.setCornerRadius(w * SQUARE_RADIUS);
+        rim.setStroke(Math.max(2, Math.round(1.5f * density)), 0x47FFFFFF);
+        rim.setColor(0x00000000);
+        card.setForeground(rim);
         return new Holder(v, listener, animations, advancedEffects, reducedMotion, restNameAlpha, focusOvershoot);
     }
 
@@ -595,7 +638,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             if (e.backdrop == null) e.backdrop = backdrop(e.icon, ambientColorAt(position));
             h.card.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, e.backdrop));
         }
-        if (iconGrid && h.getItemViewType() == TYPE_GRID) {
+        if ((iconGrid && h.getItemViewType() == TYPE_GRID) || h.getItemViewType() == TYPE_SQUARE_DOCK) {
             bindSquare(h, e);
         } else if (e.banner != null) {
             h.banner.setImageDrawable(e.banner);
@@ -743,6 +786,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     @Override public int getItemViewType(int position) {
         if (isLibraryAt(position)) return 1;
+        if (squareDock && dockRow && !singleRow && position < dockSize) return TYPE_SQUARE_DOCK;
         // The grid under the dock gets its own tiles when it is laid out differently from the dock.
         boolean ownGrid = iconGrid || gridColumns != dockSize;
         return ownGrid && dockRow && !singleRow && position >= dockSize ? TYPE_GRID : 0;
