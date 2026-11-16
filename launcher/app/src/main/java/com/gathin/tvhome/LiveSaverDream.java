@@ -102,6 +102,8 @@ public class LiveSaverDream extends DreamService {
     // the song (now_playing)
     private NowPlaying nowPlaying;
     private NowPlayingCard songCard;
+    /** The song's square card, as big as Home's. */
+    private static final int SONG_DP = 236;
 
     @Override
     public void onAttachedToWindow() {
@@ -385,13 +387,17 @@ public class LiveSaverDream extends DreamService {
 
     // ---- the song (now_playing) ----------------------------------------------------------------------------------
 
-    /** The song that plays, in the bottom right corner: it fades in and out there and never moves. */
+    /**
+     * The song that plays, in the bottom right corner, as on Home: a square filled by its cover with the song's lines
+     * over it. It fades in and out there and never moves.
+     */
     private void buildSongCard() {
-        songCard = new NowPlayingCard(this, backdrop, false);
+        songCard = new NowPlayingCard(this, backdrop, true);
         FrameLayout.LayoutParams lp = songCard.params(Gravity.BOTTOM | Gravity.END);
         lp.rightMargin = dp(MARGIN);
         lp.bottomMargin = dp(MARGIN);
         root.addView(songCard, lp);
+        songCard.fitSquare(dp(SONG_DP));
         nowPlaying = new NowPlaying(this, config.nowPlayingApps, this::onSong);
     }
 
