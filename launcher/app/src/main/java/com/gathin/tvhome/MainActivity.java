@@ -2882,8 +2882,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         lens.addState(new int[]{android.R.attr.state_focused}, new GlassDrawable(glassBackdrop, GlassDrawable.MILK, r, density));
         lens.addState(new int[]{android.R.attr.state_activated},
                 new GlassDrawable(glassBackdrop, GlassDrawable.ACTIVE, r, density));
-        lens.addState(new int[0], new GlassDrawable(glassBackdrop, immersive ? GlassDrawable.BRIGHT : GlassDrawable.CLEAR,
-                r, density));
+        lens.addState(new int[0], new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, r, density));
         button.setBackground(lens);
     }
 
