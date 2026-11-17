@@ -47,7 +47,7 @@ final class GlassDrawable extends Drawable {
     /** Clear glass over Home's backdrop: the header, the button bar and the dock band. */
     static final Look CLEAR = new Look(0x14FFFFFF, 0.16f, 1f, 16f);
     /** The immersive Home's top buttons over a dark sky: brighter glass, so they do not read as dark holes. */
-    static final Look BRIGHT = new Look(0x33FFFFFF, 0.3f, 1.1f, 16f);
+    static final Look BRIGHT = new Look(0x24FFFFFF, 0.2f, 1.1f, 16f);
     /** The focused button: milky glass, so its dark label reads like on the old white pill. */
     static final Look MILK = new Look(0xD6FFFFFF, 0.1f, 1.2f, 10f);
     /** A button switched on (pill_bg's activated blue). */
