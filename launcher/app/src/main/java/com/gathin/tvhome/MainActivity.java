@@ -3074,7 +3074,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Continue watching and the dock step away (the intro brings them back up with showRows). */
     private void hideRows(boolean now) {
         rowsHidden = true;
-        float drop = 28 * density;
+        float drop = 20 * density;
         boolean motion = !now && animations && !reducedMotion;
         fadeScrim(0, motion ? 640 : 0);
         android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
@@ -3092,6 +3092,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 v.setTranslationY(y);
             }
         }
+        if (nowPlayingCard != null && nowPlayingCard.getVisibility() == View.VISIBLE) {
+            nowPlayingCard.animate().cancel();
+            if (motion) nowPlayingCard.animate().alpha(0f).setDuration(420).setInterpolator(ease).withLayer().start();
+            else nowPlayingCard.setAlpha(0f);
+        }
     }
 
     /** Continue watching and the dock rise back in, one after the other, and the shade returns under them. */
@@ -3100,7 +3105,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         rowsHidden = false;
         boolean motion = animations && !reducedMotion;
         fadeScrim(scrimShadeAlpha, motion ? 520 : 0);
-        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f);
+        // A long, soft ease-out with only a little travel: things settle into place rather than arrive.
+        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.16f, 1f, 0.3f, 1f);
         View row = continueRow != null ? continueRow.view : null;
         long delay = 0;
         for (View v : new View[]{row, grid}) {
@@ -3108,12 +3114,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             v.animate().cancel();
             float y = v == grid ? 0f : v.getTranslationY();
             if (motion) {
-                v.animate().alpha(1f).translationY(y).setStartDelay(delay).setDuration(620).setInterpolator(ease)
+                v.animate().alpha(1f).translationY(y).setStartDelay(delay).setDuration(1100).setInterpolator(ease)
                         .withLayer().start();
-                delay += 70;
+                delay += 120;
             } else {
                 v.setAlpha(1f);
                 v.setTranslationY(y);
+            }
+        }
+        if (nowPlayingCard != null && nowPlayingCard.hasSong()) {
+            nowPlayingCard.animate().cancel();
+            if (motion) {
+                nowPlayingCard.animate().alpha(1f).setStartDelay(delay).setDuration(1100).setInterpolator(ease)
+                        .withLayer().start();
+            } else {
+                nowPlayingCard.setAlpha(1f);
             }
         }
     }
@@ -3169,8 +3184,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void playIntro() {
         if (!animations || reducedMotion) return;
-        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f);
-        android.view.animation.Interpolator soft = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
+        // Apple-like: long and soft, everything fading up with little travel, one thing gently after another.
+        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.16f, 1f, 0.3f, 1f);
+        android.view.animation.Interpolator soft = new android.view.animation.PathInterpolator(0.33f, 0f, 0.2f, 1f);
         if (introCurtain == null) {
             introCurtain = new View(this);
             introCurtain.setBackgroundColor(Color.BLACK);
@@ -3182,30 +3198,30 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         introCurtain.bringToFront();
         introCurtain.setVisibility(View.VISIBLE);
         introCurtain.setAlpha(1f);
-        introCurtain.animate().alpha(0f).setStartDelay(120).setDuration(1100).setInterpolator(soft)
+        introCurtain.animate().alpha(0f).setStartDelay(80).setDuration(1500).setInterpolator(soft)
                 .withEndAction(() -> introCurtain.setVisibility(View.GONE)).start();
 
         View wall = wallpaperPlayer.view();
         for (View picture : new View[]{wall, heroArt}) {
             if (picture == null) continue;
             picture.animate().cancel();
-            picture.setScaleX(1.08f);
-            picture.setScaleY(1.08f);
-            picture.animate().scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(2400).setInterpolator(ease).start();
+            picture.setScaleX(1.06f);
+            picture.setScaleY(1.06f);
+            picture.animate().scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(3200).setInterpolator(ease).start();
         }
-        if (immersiveClock != null) immersiveClock.playIntro(380, 1400);
+        if (immersiveClock != null) immersiveClock.playIntro(350, 1800);
 
         View bar = findViewById(R.id.topButtons);
         bar.animate().cancel();
         bar.setAlpha(0f);
-        bar.setScaleX(0.96f);
-        bar.setScaleY(0.96f);
-        bar.animate().alpha(1f).scaleX(1f).scaleY(1f).setStartDelay(820).setDuration(800).setInterpolator(ease).start();
+        bar.setTranslationY(-12 * density);
+        bar.animate().alpha(1f).translationY(0f).setStartDelay(700).setDuration(1200).setInterpolator(ease)
+                .withLayer().start();
 
         // Continue watching and then the dock rise in after the clock; the shade stays as it is.
         hideRows(true);
         fadeScrim(scrimShadeAlpha, 0);
-        root.postDelayed(this::showRows, 950);
+        root.postDelayed(this::showRows, 900);
     }
 
     /** Keep watching in one line right over the dock's band, lined up with the dock's first tile. */
