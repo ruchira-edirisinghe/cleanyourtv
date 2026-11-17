@@ -484,30 +484,12 @@ final class ContinueRow {
             }
         });
         card.setClipToOutline(true);
-        // Sideways, in glass: the picture and all on it sit in a frame of Home's glass, a few dp in from the edge.
-        FrameLayout pic = card;
-        if (sideways && glass != null) {
-            final float frame = 1.5f * density;   // a thin rim, like the dock tiles' edge
-            card.setBackground(new GlassDrawable(glass, GlassDrawable.BRIGHT, radius, density));
-            pic = new FrameLayout(activity);
-            pic.setBackground(fill);
-            pic.setOutlineProvider(new ViewOutlineProvider() {
-                @Override
-                public void getOutline(View v, Outline outline) {
-                    outline.setRoundRect(0, 0, v.getWidth(), v.getHeight(), radius - frame);
-                }
-            });
-            pic.setClipToOutline(true);
-            FrameLayout.LayoutParams plp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT);
-            int f = Math.round(frame);
-            plp.setMargins(f, f, f, f);
-            card.addView(pic, plp);
-        }
+        // Sideways: a thin light rim over the picture's edge, like the dock tiles' (the focus ring replaces it).
+        if (sideways && rims) card.setForeground(rim(radius));
 
         ImageView art = new ImageView(activity);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        pic.addView(art, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        card.addView(art, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         TextView title = text(14.5f, 0xF2FFFFFF, true);
         if (display) {
@@ -520,7 +502,7 @@ final class ContinueRow {
             TextView mark = text(15f, 0xFFFFFFFF, true);
             mark.setText(R.string.continue_connect_title);
             mark.setGravity(Gravity.CENTER);
-            pic.addView(mark, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            card.addView(mark, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             title.setText("Stremio");
             meta.setText(R.string.continue_connect_caption);
         } else {
@@ -528,7 +510,7 @@ final class ContinueRow {
             View shade = new View(activity);
             shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x00000000, 0xB3000000}));
             FrameLayout.LayoutParams shadeLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, cardH / 2, Gravity.BOTTOM);
-            pic.addView(shade, shadeLp);
+            card.addView(shade, shadeLp);
 
             ImageView badge = new ImageView(activity);
             Drawable icon = appIcon(item.pkg);
@@ -544,7 +526,7 @@ final class ContinueRow {
                 int badgeSize = dp(sideways ? 16 : 20);
                 FrameLayout.LayoutParams badgeLp = new FrameLayout.LayoutParams(badgeSize, badgeSize, Gravity.TOP | Gravity.START);
                 badgeLp.setMargins(dp(sideways ? 6 : 8), dp(sideways ? 6 : 8), 0, 0);
-                pic.addView(badge, badgeLp);
+                card.addView(badge, badgeLp);
             }
 
             if (item.isNew) {
@@ -559,7 +541,7 @@ final class ContinueRow {
                 FrameLayout.LayoutParams chipLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM | Gravity.START);
                 chipLp.setMargins(dp(8), 0, 0, dp(8));
-                pic.addView(chip, chipLp);
+                card.addView(chip, chipLp);
             } else if (item.duration > 0) {
                 FrameLayout track = new FrameLayout(activity);
                 GradientDrawable trackBg = new GradientDrawable();
@@ -575,7 +557,7 @@ final class ContinueRow {
                 track.addView(bar, new FrameLayout.LayoutParams(Math.max(dp(4), Math.round(trackW * item.progress())), dp(3)));
                 FrameLayout.LayoutParams trackLp = new FrameLayout.LayoutParams(trackW, dp(3), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
                 trackLp.bottomMargin = dp(8);
-                pic.addView(track, trackLp);
+                card.addView(track, trackLp);
             }
             // The title's logo over its backdrop, at the bottom left, above the bar or the new episode chip.
             // (Sideways the tile is small and its name is right under it: no logo.)
@@ -588,7 +570,7 @@ final class ContinueRow {
                 FrameLayout.LayoutParams logoLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                         dp(36), Gravity.BOTTOM | Gravity.START);
                 logoLp.setMargins(dp(10), 0, 0, dp(item.isNew ? 32 : 18));
-                pic.addView(logo, logoLp);
+                card.addView(logo, logoLp);
                 loadLogo("https://images.metahub.space/logo/medium/" + imdb + "/img", logo);
             }
             title.setText(item.title);
@@ -636,6 +618,7 @@ final class ContinueRow {
         line.addView(column, columnLp);
         cards.add(card);
 
+        final Drawable rest = card.getForeground();   // the rim, if any
         GradientDrawable ring = new GradientDrawable();
         ring.setCornerRadius(radius);
         ring.setStroke(dp(2.5f), 0xFFFFFFFF);
@@ -645,7 +628,7 @@ final class ContinueRow {
             v.animate().scaleX(focused ? focusScale : 1f).scaleY(focused ? focusScale : 1f)
                     .translationZ(focused ? 8 * density : 0f).setDuration(focused ? 200 : 150)
                     .setInterpolator(new DecelerateInterpolator(1.5f)).start();
-            card.setForeground(focused ? ring : null);
+            card.setForeground(focused ? ring : rest);
             title.setAlpha(focused ? 1f : 0.8f);
             meta.setAlpha(focused ? 1f : 0.8f);
             if (focused) host.onContinueFocused(v, item);
@@ -806,13 +789,13 @@ final class ContinueRow {
     }
 
     /** The cover for the top banner, at the screen's width: from memory, the disk or the web. */
-    /** Home's glass (liquid_glass): sideways, each tile's picture sits in a glass frame. Null for none. */
-    private GlassBackdrop glass;
+    /** Sideways: each tile has a thin light rim, like the dock tiles. */
+    private boolean rims;
 
-    void setGlass(GlassBackdrop backdrop) {
-        if (glass == backdrop) return;
-        glass = backdrop;
-        signature = "";   // made again in glass at the next refresh
+    void setRims(boolean on) {
+        if (rims == on) return;
+        rims = on;
+        signature = "";   // made again with them at the next refresh
     }
 
     /** The immersive Home's scrim, painted into each cover as it is decoded (ShadeBaker); null for none. */
@@ -1037,6 +1020,22 @@ final class ContinueRow {
         if (linkDialog != null) linkDialog.dismiss();
         pictures.shutdownNow();
         sync.shutdownNow();
+    }
+
+    /**
+     * A thin light rim over a picture's edge, like the dock tiles': one stroke drawn over it, so no frame, no extra
+     * clip and no glass shader under the whole picture (which cost the TV's GPU far more than the rim that shows).
+     */
+    static GradientDrawable rim(float radiusPx, float density) {
+        GradientDrawable d = new GradientDrawable();
+        d.setCornerRadius(radiusPx);
+        d.setColor(0x00000000);
+        d.setStroke(Math.max(1, Math.round(density)), 0x66FFFFFF);
+        return d;
+    }
+
+    private GradientDrawable rim(float radiusPx) {
+        return rim(radiusPx, density);
     }
 
     private int dp(float v) {

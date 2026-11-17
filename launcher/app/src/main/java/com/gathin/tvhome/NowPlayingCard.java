@@ -42,7 +42,6 @@ final class NowPlayingCard extends FrameLayout {
 
     private final float density;
     private final boolean upright;
-    private final GlassBackdrop backdrop;
     private final ImageView art;
     private final TextView kicker, title, artist, elapsed, length;
     private final View fill;
@@ -54,6 +53,8 @@ final class NowPlayingCard extends FrameLayout {
     private LinearLayout column;
     /** fitSquare: the cover fills the whole square card and the song's lines sit over its lower part. */
     private boolean square;
+    /** The foreground while not focused: the square card's rim, else nothing. */
+    private Drawable rest;
     /** A song to show, and whether its place lets it show now (Home hides it once the apps scroll). */
     private boolean hasSong, allowed = true, visibleNow;
     /** The song plays (the bars dance, the time runs); false shows the last one, stopped. */
@@ -73,7 +74,6 @@ final class NowPlayingCard extends FrameLayout {
     NowPlayingCard(Context context, GlassBackdrop backdrop, boolean upright) {
         super(context);
         this.upright = upright;
-        this.backdrop = backdrop;
         density = context.getResources().getDisplayMetrics().density;
         setBackground(new GlassDrawable(backdrop, GlassDrawable.SMOKE, dp(22), density));
         setClipToOutline(true);
@@ -222,19 +222,10 @@ final class NowPlayingCard extends FrameLayout {
         if (!upright || sizePx <= 0) return;
         if (!square) {
             square = true;
-            // The cover and the song's lines over it, in a rounded box set a few dp into the card's glass.
-            FrameLayout box = new FrameLayout(getContext());
-            box.setClipToOutline(true);
-            box.setOutlineProvider(rounded(20.5f));
             column.removeView(art);
             art.setOutlineProvider(null);
             art.setClipToOutline(false);
-            box.addView(art, new FrameLayout.LayoutParams(-1, -1));
-            removeView(column);
-            box.addView(column);
-            FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(-1, -1);
-            bl.setMargins(dp(1.5f), dp(1.5f), dp(1.5f), dp(1.5f));   // a thin rim, like the dock tiles' edge
-            addView(box, 0, bl);
+            addView(art, 0, new FrameLayout.LayoutParams(-1, -1));
             GradientDrawable shade = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                     new int[]{0x00000000, 0x99000000, 0xD9000000, 0xF2000000});
             column.setBackground(shade);
@@ -245,7 +236,9 @@ final class NowPlayingCard extends FrameLayout {
             topl.topMargin = 0;
             FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
             column.setLayoutParams(cl);
-            setBackground(new GlassDrawable(backdrop, GlassDrawable.BRIGHT, dp(22), density));
+            setBackground(null);   // the cover covers it
+            rest = ContinueRow.rim(dp(22), density);   // a thin rim over the cover's edge, like the dock tiles'
+            if (!hasFocus()) setForeground(rest);
         }
         ViewGroup.LayoutParams lp = getLayoutParams();
         if (lp != null && (lp.width != sizePx || lp.height != sizePx)) {
@@ -286,7 +279,7 @@ final class NowPlayingCard extends FrameLayout {
         ring.setStroke(dp(3), Color.WHITE);
         ring.setColor(0x00000000);
         setOnFocusChangeListener((v, has) -> {
-            setForeground(has ? ring : null);
+            setForeground(has ? ring : rest);
             animate().scaleX(has ? 1.04f : 1f).scaleY(has ? 1.04f : 1f).setDuration(180).start();
         });
     }
