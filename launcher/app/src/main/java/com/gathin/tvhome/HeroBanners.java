@@ -38,6 +38,7 @@ final class HeroBanners {
         o = new BitmapFactory.Options();
         o.inSampleSize = sample;
         o.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        o.inMutable = true;   // the immersive Home paints its shade into it (ShadeBaker)
         try {
             return BitmapFactory.decodeFile(f.getPath(), o);
         } catch (OutOfMemoryError e) {

@@ -113,6 +113,8 @@ final class ImmersiveClock extends View {
      * faded like any other.
      */
     void overVideo() {
+        shadowRoom = Math.round(28f * density);
+        requestLayout();
         blend.setXfermode(null);
         blendAlpha = 0xE0;
         blend.setAlpha(blendAlpha);
@@ -169,13 +171,17 @@ final class ImmersiveClock extends View {
     }
 
     /** The space from the view's top to the bottom of the digits. */
+    /** Extra height under the digits for the shadow (overVideo), in px. */
+    private int shadowRoom;
+
     int contentHeight() {
         return Math.round(-dateMetrics.ascent + dateMetrics.descent + gap + digitHeight() + 4 * density);
     }
 
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), contentHeight());
+        // Room under the digits for overVideo's soft shadow, which the view's edge would otherwise cut off in a line.
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), contentHeight() + shadowRoom);
     }
 
     @Override

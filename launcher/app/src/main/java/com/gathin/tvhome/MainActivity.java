@@ -168,6 +168,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** config.xml cinematic_white_focus: the cinematic shelf keeps the white highlight. */
     private boolean cinematicWhiteFocus;
     private ImageView heroArt;
+    /** immersive_home: the scrim, painted into the wallpaper and the full-screen pictures instead of a shade view. */
+    private ShadeBaker shadeBaker;
     /** Under heroArt while one picture changes to the next: holds the old one, so the new one fades in over it. */
     private ImageView heroArtBack;
     /** config.xml cinematic_dots: false leaves the dock position dots out of the cinematic shelf. */
@@ -306,7 +308,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** immersive_home while a song plays: its card stands at the right of Continue watching and the dock. */
     private boolean songMode;
     private int baseGridPadRight = -1;
-    private View introCurtain;
     private final BroadcastReceiver screenOnReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -573,7 +574,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // black under it is a second full-screen fill on every frame for nothing. The starting window still uses
         // the theme's background, so launch looks the same.
         getWindow().setBackgroundDrawable(null);
-        wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
+        cinematic = cfg.cinematicHome;
+        heroBanners = cinematic && cfg.heroBanners;
+        immersive = cfg.immersiveHome && cfg.dockRow && !cfg.singleRow;
+        // immersive_home: the scrim is painted into the pictures, not drawn over them on every frame (ShadeBaker).
+        if (cinematic && immersive && cfg.cinematicScrim > 0) {
+            shadeBaker = new ShadeBaker(((BitmapDrawable) scrimDrawable()).getBitmap(), cfg.cinematicScrim * 255 / 100);
+        }
+        wallpaperPlayer = new WallpaperPlayer(this, root, cfg, shadeBaker);
         sky = findViewById(R.id.sky);
         sky.setIntensity(cfg.skyIntensity);
         glass = findViewById(R.id.glass);
@@ -596,13 +604,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroDots = findViewById(R.id.heroDots);
         heroArt = findViewById(R.id.heroArt);
         setUpHeroArtBack();
-        cinematic = cfg.cinematicHome;
         glowStyle = cfg.glowStyle;
         heroDotsShown = cfg.cinematicDots;
         cinematicWhiteFocus = cfg.cinematicWhiteFocus;
         heroArtAlpha = cfg.cinematicArt / 100f;
-        heroBanners = cinematic && cfg.heroBanners;
-        immersive = cfg.immersiveHome && cfg.dockRow && !cfg.singleRow;
         if (cinematic) setUpCinematicShelf(cfg.cinematicScrim);
         if (cfg.gridGlow && cfg.dockRow && !cfg.singleRow) setUpGridGlow();
         // dock_title false: the name above the dock (and the cinematic lines under it) never shows; the glow
@@ -764,7 +769,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     cfg.dockEvenPadding, cfg.dockBand, singleRow, cfg.dockBandAll);
             grid.addItemDecoration(dockDecoration);
         }
-        if (cfg.fadeRows) TopFade.attach(grid, 48 * density);
+        // Immersive: the dock never scrolls, and the fade's hardware layer would cost a full-screen pass every frame.
+        if (cfg.fadeRows && !immersive) TopFade.attach(grid, 48 * density);
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
             grid.setLayoutAnimation(new LayoutAnimationController(
@@ -2165,6 +2171,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void setUpLiquidGlass(Config cfg) {
         glassBackdrop = new GlassBackdrop();
+        if (immersive && continueRow != null) continueRow.setGlass(glassBackdrop);
         LinearLayout block = findViewById(R.id.leftBlock);
         View content = (View) block.getParent().getParent();
         List<View> layers = new ArrayList<>();
@@ -2348,6 +2355,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // One stretched bitmap: apply its alpha while drawing instead of through an offscreen buffer.
         heroArt.forceHasOverlappingRendering(false);
         if (scrimPercent <= 0) return;   // cinematic_scrim 0: no scrim at all
+        if (shadeBaker != null) return;   // painted into the pictures instead
         View scrim = findViewById(R.id.heroScrim);
         Drawable shade = scrimDrawable();
         // On the bitmap's paint, not the view: a view's alpha would draw the full screen through an offscreen buffer.
@@ -2381,7 +2389,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (heroBanners) {
             // A full picture can be bright right under the top bar: shade the top so the clock and pills stay readable.
             paint.setShader(new LinearGradient(0, 0, 0, h * 0.3f,
-                    new int[]{0xB3060406, 0x66060406, 0x00060406}, new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
+                    immersive ? new int[]{0x59060406, 0x26060406, 0x00060406}
+                            : new int[]{0xB3060406, 0x66060406, 0x00060406},
+                    new float[]{0f, 0.55f, 1f}, Shader.TileMode.CLAMP));
             canvas.drawRect(0, 0, w, h * 0.3f, paint);
         }
         BitmapDrawable scrim = new BitmapDrawable(getResources(), bmp);
@@ -2417,6 +2427,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             art = heroArtCache.get(key);
             if (art == null) {
                 art = HeroArt.from(adapter.artworkAt(position));
+                if (art != null && shadeBaker != null) art = shadeBaker.bake(art);
                 if (art != null) heroArtCache.put(key, art);
             }
         }
@@ -2506,7 +2517,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         final int h = root.getHeight() > 0 ? root.getHeight() : getResources().getDisplayMetrics().heightPixels;
         heroBannerLoader.execute(() -> {
             File f = HeroBanners.file(app, pkg);
-            final Bitmap b = f == null ? null : HeroBanners.decode(f, w, h);
+            Bitmap decoded = f == null ? null : HeroBanners.decode(f, w, h);
+            final Bitmap b = shadeBaker != null ? shadeBaker.bake(decoded) : decoded;
             runOnUiThread(() -> {
                 heroBannerLoading.remove(pkg);
                 if (isDestroyed()) return;
@@ -2739,6 +2751,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         });
         if (immersive) continueRow.setSideways();
+        continueRow.setCoverShade(shadeBaker);
+        if (immersive) continueRow.setGlass(glassBackdrop);
         ViewGroup wrapper = (ViewGroup) grid.getParent();
         wrapper.addView(continueRow.view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -2861,7 +2875,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         lens.addState(new int[]{android.R.attr.state_focused}, new GlassDrawable(glassBackdrop, GlassDrawable.MILK, r, density));
         lens.addState(new int[]{android.R.attr.state_activated},
                 new GlassDrawable(glassBackdrop, GlassDrawable.ACTIVE, r, density));
-        lens.addState(new int[0], new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, r, density));
+        lens.addState(new int[0], new GlassDrawable(glassBackdrop, immersive ? GlassDrawable.BRIGHT : GlassDrawable.CLEAR,
+                r, density));
         button.setBackground(lens);
     }
 
@@ -2991,6 +3006,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         android.graphics.Typeface date = UiFont.get(this, R.string.font_medium);
         ImmersiveClock clock = new ImmersiveClock(this, date, time, 155f, clockFormat);
         immersiveClock = clock;
+        // Plain blending: the overlay and screen modes make the GPU read the picture back under the digits on
+        // every frame, which the TV's GPU feels.
+        clock.overVideo();
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
         lp.topMargin = Math.round(64 * density);
@@ -3055,7 +3073,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** Continue watching and the dock step away (the intro brings them back up with showRows). */
     private void hideRows(boolean now) {
         rowsHidden = true;
-        float drop = 28 * density;
+        float drop = 20 * density;
         boolean motion = !now && animations && !reducedMotion;
         fadeScrim(0, motion ? 640 : 0);
         android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
@@ -3073,6 +3091,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 v.setTranslationY(y);
             }
         }
+        if (nowPlayingCard != null && nowPlayingCard.getVisibility() == View.VISIBLE) {
+            nowPlayingCard.animate().cancel();
+            if (motion) nowPlayingCard.animate().alpha(0f).setDuration(420).setInterpolator(ease).withLayer().start();
+            else nowPlayingCard.setAlpha(0f);
+        }
     }
 
     /** Continue watching and the dock rise back in, one after the other, and the shade returns under them. */
@@ -3081,7 +3104,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         rowsHidden = false;
         boolean motion = animations && !reducedMotion;
         fadeScrim(scrimShadeAlpha, motion ? 520 : 0);
-        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f);
+        // A long, soft ease-out with only a little travel: things settle into place rather than arrive.
+        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.16f, 1f, 0.3f, 1f);
         View row = continueRow != null ? continueRow.view : null;
         long delay = 0;
         for (View v : new View[]{row, grid}) {
@@ -3089,12 +3113,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             v.animate().cancel();
             float y = v == grid ? 0f : v.getTranslationY();
             if (motion) {
-                v.animate().alpha(1f).translationY(y).setStartDelay(delay).setDuration(620).setInterpolator(ease)
+                v.animate().alpha(1f).translationY(y).setStartDelay(delay).setDuration(1100).setInterpolator(ease)
                         .withLayer().start();
-                delay += 70;
+                delay += 120;
             } else {
                 v.setAlpha(1f);
                 v.setTranslationY(y);
+            }
+        }
+        if (nowPlayingCard != null && nowPlayingCard.hasSong()) {
+            nowPlayingCard.animate().cancel();
+            if (motion) {
+                nowPlayingCard.animate().alpha(1f).setStartDelay(delay).setDuration(1100).setInterpolator(ease)
+                        .withLayer().start();
+            } else {
+                nowPlayingCard.setAlpha(1f);
             }
         }
     }
@@ -3150,43 +3183,36 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void playIntro() {
         if (!animations || reducedMotion) return;
-        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.22f, 1f, 0.36f, 1f);
-        android.view.animation.Interpolator soft = new android.view.animation.PathInterpolator(0.4f, 0f, 0.2f, 1f);
-        if (introCurtain == null) {
-            introCurtain = new View(this);
-            introCurtain.setBackgroundColor(Color.BLACK);
-            introCurtain.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            root.addView(introCurtain, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT));
-        }
-        introCurtain.animate().cancel();
-        introCurtain.bringToFront();
-        introCurtain.setVisibility(View.VISIBLE);
-        introCurtain.setAlpha(1f);
-        introCurtain.animate().alpha(0f).setStartDelay(120).setDuration(1100).setInterpolator(soft)
-                .withEndAction(() -> introCurtain.setVisibility(View.GONE)).start();
-
+        // Apple-like: long and soft, everything fading up with little travel, one thing gently after another.
+        android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.16f, 1f, 0.3f, 1f);
+        android.view.animation.Interpolator soft = new android.view.animation.PathInterpolator(0.33f, 0f, 0.2f, 1f);
+        // The picture itself comes up out of the black behind it: no curtain over everything, which on the TV's GPU
+        // would be one more full-screen layer on every frame of the intro.
         View wall = wallpaperPlayer.view();
         for (View picture : new View[]{wall, heroArt}) {
             if (picture == null) continue;
             picture.animate().cancel();
-            picture.setScaleX(1.08f);
-            picture.setScaleY(1.08f);
-            picture.animate().scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(2400).setInterpolator(ease).start();
+            picture.setScaleX(1.06f);
+            picture.setScaleY(1.06f);
+            picture.animate().scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(3200).setInterpolator(ease).start();
         }
-        if (immersiveClock != null) immersiveClock.playIntro(380, 1400);
+        if (wall != null) {
+            wall.setAlpha(0f);
+            wall.animate().alpha(1f).setStartDelay(80).setDuration(1500).setInterpolator(soft).start();
+        }
+        if (immersiveClock != null) immersiveClock.playIntro(350, 1800);
 
         View bar = findViewById(R.id.topButtons);
         bar.animate().cancel();
         bar.setAlpha(0f);
-        bar.setScaleX(0.96f);
-        bar.setScaleY(0.96f);
-        bar.animate().alpha(1f).scaleX(1f).scaleY(1f).setStartDelay(820).setDuration(800).setInterpolator(ease).start();
+        bar.setTranslationY(-12 * density);
+        bar.animate().alpha(1f).translationY(0f).setStartDelay(700).setDuration(1200).setInterpolator(ease)
+                .withLayer().start();
 
         // Continue watching and then the dock rise in after the clock; the shade stays as it is.
         hideRows(true);
         fadeScrim(scrimShadeAlpha, 0);
-        root.postDelayed(this::showRows, 950);
+        root.postDelayed(this::showRows, 900);
     }
 
     /** Keep watching in one line right over the dock's band, lined up with the dock's first tile. */
@@ -3246,6 +3272,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // A square as tall as the space, the cover filling it; at the right, so what is left of the card's
         // column widens the gap to the dock and Continue watching.
         int size = Math.min(Math.round(bandBottom - cardTop), songCardWidth());
+        // Standing on the band's bottom: the same place whether or not Continue watching has loaded yet.
+        cardTop = bandBottom - size;
         nowPlayingCard.fitSquare(size);
         float cardX = cardRight - size;
         if (nowPlayingCard.getTranslationY() != cardTop) nowPlayingCard.setTranslationY(cardTop);
