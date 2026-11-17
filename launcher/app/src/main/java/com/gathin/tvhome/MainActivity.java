@@ -3281,6 +3281,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // A square as tall as the space, the cover filling it; at the right, so what is left of the card's
         // column widens the gap to the dock and Continue watching.
         int size = Math.min(Math.round(bandBottom - cardTop), songCardWidth());
+        // Standing on the band's bottom: the same place whether or not Continue watching has loaded yet.
+        cardTop = bandBottom - size;
         nowPlayingCard.fitSquare(size);
         float cardX = cardRight - size;
         if (nowPlayingCard.getTranslationY() != cardTop) nowPlayingCard.setTranslationY(cardTop);
