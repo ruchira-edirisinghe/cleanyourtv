@@ -103,8 +103,10 @@ Hold OK on a card to remove it, or to disconnect Stremio.
 
 `LiveSaverDream` plays looping animated 4K scenes (a neon road, cosy pixel-art and candlelit rooms, firefly caves,
 lantern skies, anime streets) and dips through black to the next every 75 seconds. Each is shown whole, edge to edge on a 16:9
-screen, never cropped. At the top centre, like a tablet's lock screen, stand the time with the weather beside it, the
-date, then the greeting with your name, as raised type with a soft shadow and no panel behind it. Every half minute or so a glass card with the poster comes up in
+screen, never cropped. Home's clock stands where it does on Home: the date over a large light time, and the weather
+centred under it (its picture, the temperature, then what it is doing and where). The scenes play on their own video
+surface, so the time cannot blend into them as it does into Home's wallpaper; it is soft, slightly see-through white
+with a gentle shadow, and rises in the same way. Every half minute or so a glass card with the poster comes up in
 a bottom corner for something left part-watched, or a new Stremio episode. Press OK while a card is up to jump back
 into it; any other key ends the screensaver.
 

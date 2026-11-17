@@ -14,7 +14,6 @@ import android.os.Handler;
 import android.os.Looper;
 import android.service.dreams.DreamService;
 import android.text.TextUtils;
-import android.text.format.DateFormat;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -28,7 +27,6 @@ import android.view.animation.OvershootInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.TextClock;
 import android.widget.TextView;
 
 import java.io.File;
@@ -83,6 +81,7 @@ public class LiveSaverDream extends DreamService {
 
     // the clock
     private LinearLayout island;
+    private ImmersiveClock clock;
     private TextView greeting;
 
     // the weather
@@ -103,6 +102,8 @@ public class LiveSaverDream extends DreamService {
     // the song (now_playing)
     private NowPlaying nowPlaying;
     private NowPlayingCard songCard;
+    /** The song's square card, as big as Home's. */
+    private static final int SONG_DP = 236;
 
     @Override
     public void onAttachedToWindow() {
@@ -174,65 +175,28 @@ public class LiveSaverDream extends DreamService {
     // ---- the clock ----------------------------------------------------------------------------------------------
 
     /**
-     * At the top centre: the time (and the weather beside it) in Sora, the date under it in Fraunces italic, then the
-     * greeting in Space Grotesk capitals, all centred.
+     * Home's clock, as on Home: the date over a large light time in the middle near the top, and the weather centred
+     * under it. The greeting is kept for the minute tick but not shown.
      */
     private void buildIsland() {
         island = new LinearLayout(this);
         island.setOrientation(LinearLayout.VERTICAL);
         island.setGravity(Gravity.CENTER_HORIZONTAL);
-        island.setPadding(dp(24), dp(8), dp(24), dp(8));
         island.setAlpha(0f);
 
-        LinearLayout top = new LinearLayout(this);
-        top.setOrientation(LinearLayout.HORIZONTAL);
-        top.setGravity(Gravity.CENTER_VERTICAL);
-        TextClock time = new TextClock(this);
-        time.setFormat12Hour("h:mm");
-        time.setFormat24Hour("HH:mm");
-        style(time, 80, Color.WHITE, R.string.font_clock_bold);
-        time.setLetterSpacing(-0.03f);
-        time.setIncludeFontPadding(false);
-        DepthShadow.apply(time, 4f, 18f);
-        top.addView(time, wrap());
-        if (!DateFormat.is24HourFormat(this)) {
-            TextClock ampm = new TextClock(this);
-            ampm.setFormat12Hour("a");
-            ampm.setFormat24Hour("");
-            style(ampm, 16, 0xCCFFFFFF, R.string.font_label_bold);
-            ampm.setAllCaps(true);
-            DepthShadow.apply(ampm, 1.2f, 6f);
-            LinearLayout.LayoutParams lp = wrap();
-            lp.gravity = Gravity.BOTTOM;
-            lp.setMargins(dp(6), 0, 0, dp(10));
-            top.addView(ampm, lp);
-        }
-        buildWeather(top);
-        island.addView(top, wrap());
-
-        TextClock date = new TextClock(this);
-        date.setFormat12Hour(getString(R.string.date_format_home));
-        date.setFormat24Hour(getString(R.string.date_format_home));
-        style(date, 26, Color.WHITE, R.string.font_title_italic);
-        date.setSingleLine(true);
-        DepthShadow.apply(date, 2f, 10f);
-        LinearLayout.LayoutParams dl = wrap();
-        dl.topMargin = dp(8);
-        island.addView(date, dl);
+        clock = new ImmersiveClock(this, UiFont.get(this, R.string.font_medium), UiFont.get(this, R.string.font_light),
+                155f, config.clockFormat);
+        clock.overVideo();
+        island.addView(clock, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT));
+        buildWeather(island);
 
         greeting = new TextView(this);
-        style(greeting, 13, 0xD9FFFFFF, R.string.font_label_bold);
-        greeting.setLetterSpacing(0.2f);
-        greeting.setSingleLine(true);
-        greeting.setAllCaps(true);   // after setSingleLine, which would replace the capitals
-        DepthShadow.apply(greeting, 1.2f, 6f);
-        LinearLayout.LayoutParams gl = wrap();
-        gl.topMargin = dp(10);
-        island.addView(greeting, gl);
         updateGreeting();
 
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        lp.topMargin = dp(MARGIN);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP);
+        lp.topMargin = dp(64);   // where Home's clock stands
         root.addView(island, lp);
     }
 
@@ -255,8 +219,8 @@ public class LiveSaverDream extends DreamService {
 
     // ---- the weather (saver_weather) ----------------------------------------------------------------------------
 
-    /** A picture and the temperature beside the time, with what it is doing (and where) under the temperature. */
-    private void buildWeather(LinearLayout top) {
+    /** Under the clock, centred: the weather's picture, the temperature, then what it is doing and where. */
+    private void buildWeather(LinearLayout parent) {
         weatherBox = new LinearLayout(this);
         weatherBox.setOrientation(LinearLayout.HORIZONTAL);
         weatherBox.setGravity(Gravity.CENTER_VERTICAL);
@@ -264,27 +228,28 @@ public class LiveSaverDream extends DreamService {
         ImageView icon = new ImageView(this);
         weatherIcon = new WeatherIcon();
         icon.setImageDrawable(weatherIcon);
-        weatherBox.addView(icon, new LinearLayout.LayoutParams(dp(54), dp(54)));
-        LinearLayout column = new LinearLayout(this);
-        column.setOrientation(LinearLayout.VERTICAL);
+        weatherBox.addView(icon, new LinearLayout.LayoutParams(dp(46), dp(46)));
         weatherTemp = new TextView(this);
-        style(weatherTemp, 30, Color.WHITE, R.string.font_clock);
+        style(weatherTemp, 34, 0xF2FFFFFF, R.string.font_light);
         weatherTemp.setIncludeFontPadding(false);
-        DepthShadow.apply(weatherTemp, 2f, 8f);
-        column.addView(weatherTemp, wrap());
+        weatherTemp.setShadowLayer(14 * density, 0f, 2 * density, 0x59000000);
+        LinearLayout.LayoutParams tl = wrap();
+        tl.leftMargin = dp(12);
+        weatherBox.addView(weatherTemp, tl);
+        View divider = new View(this);
+        divider.setBackgroundColor(0x59FFFFFF);
+        LinearLayout.LayoutParams dl = new LinearLayout.LayoutParams(Math.max(1, dp(1)), dp(26));
+        dl.leftMargin = dp(18);
+        dl.rightMargin = dp(18);
+        weatherBox.addView(divider, dl);
         weatherLine = new TextView(this);
-        style(weatherLine, 12, 0xCCFFFFFF, R.string.font_label);
+        style(weatherLine, 19, 0xE6FFFFFF, R.string.font_medium);
         weatherLine.setSingleLine(true);
-        DepthShadow.apply(weatherLine, 1f, 5f);
-        LinearLayout.LayoutParams ll = wrap();
-        ll.topMargin = dp(3);
-        column.addView(weatherLine, ll);
-        LinearLayout.LayoutParams cl = wrap();
-        cl.leftMargin = dp(10);
-        weatherBox.addView(column, cl);
+        weatherLine.setShadowLayer(12 * density, 0f, 1.5f * density, 0x59000000);
+        weatherBox.addView(weatherLine, wrap());
         LinearLayout.LayoutParams bl = wrap();
-        bl.leftMargin = dp(30);
-        top.addView(weatherBox, bl);
+        bl.topMargin = dp(18);
+        parent.addView(weatherBox, bl);
     }
 
     private void showWeather(Weather.Now now) {
@@ -422,13 +387,17 @@ public class LiveSaverDream extends DreamService {
 
     // ---- the song (now_playing) ----------------------------------------------------------------------------------
 
-    /** The song that plays, in the bottom right corner: it fades in and out there and never moves. */
+    /**
+     * The song that plays, in the bottom right corner, as on Home: a square filled by its cover with the song's lines
+     * over it. It fades in and out there and never moves.
+     */
     private void buildSongCard() {
-        songCard = new NowPlayingCard(this, backdrop, false);
+        songCard = new NowPlayingCard(this, backdrop, true);
         FrameLayout.LayoutParams lp = songCard.params(Gravity.BOTTOM | Gravity.END);
         lp.rightMargin = dp(MARGIN);
         lp.bottomMargin = dp(MARGIN);
         root.addView(songCard, lp);
+        songCard.fitSquare(dp(SONG_DP));
         nowPlaying = new NowPlaying(this, config.nowPlayingApps, this::onSong);
     }
 
@@ -694,6 +663,7 @@ public class LiveSaverDream extends DreamService {
         if (videos.isEmpty()) dip.setAlpha(0f);
         nextClip();
         island.animate().alpha(1f).setStartDelay(600).setDuration(1200).start();
+        clock.playIntro(600, 1400);
         main.postDelayed(minute, MINUTE_MS);
         startWeather();
         main.postDelayed(copyBackdrop, 400);
