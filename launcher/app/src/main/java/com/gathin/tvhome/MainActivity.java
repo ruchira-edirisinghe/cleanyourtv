@@ -1498,6 +1498,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onStop();
         started = false;
         if (immersiveClock != null) immersiveClock.finishIntro();
+        if (immersive) endIntro();
         unregisterReceiver(timeReceiver);
         clockRefresh.stop();
         handler.removeCallbacks(clockCheck);
@@ -3219,6 +3220,35 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         hideRows(true);
         fadeScrim(scrimShadeAlpha, 0);
         root.postDelayed(this::showRows, 900);
+    }
+
+    /** Home left (or the TV off) half way through the intro: everything where it ends, so nothing stays half faded. */
+    private void endIntro() {
+        View wall = wallpaperPlayer.view();
+        if (wall != null) {
+            wall.animate().cancel();
+            wall.setAlpha(1f);
+            wall.setScaleX(1f);
+            wall.setScaleY(1f);
+        }
+        View bar = findViewById(R.id.topButtons);
+        bar.animate().cancel();
+        bar.setAlpha(1f);
+        bar.setTranslationY(0f);
+        if (rowsHidden) {
+            rowsHidden = false;
+            View row = continueRow != null ? continueRow.view : null;
+            for (View v : new View[]{row, grid}) {
+                if (v == null) continue;
+                v.animate().cancel();
+                v.setAlpha(1f);
+                if (v == grid) v.setTranslationY(0f);
+            }
+            if (nowPlayingCard != null && nowPlayingCard.hasSong()) {
+                nowPlayingCard.animate().cancel();
+                nowPlayingCard.setAlpha(1f);
+            }
+        }
     }
 
     /** Keep watching in one line right over the dock's band, lined up with the dock's first tile. */
