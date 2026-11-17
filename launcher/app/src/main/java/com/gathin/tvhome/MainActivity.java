@@ -2730,6 +2730,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
 
             @Override
+            public boolean onContinueEnd() {
+                if (!immersive || nowPlayingCard == null || !songMode || !nowPlayingCard.requestFocus()) return false;
+                grid.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT);
+                return true;
+            }
+
+            @Override
             public void onContinueDown(float screenX) {
                 if (immersive) {
                     focusNearestTile(screenX, 0, Math.min(adapter.dockFilled(), COLUMNS));

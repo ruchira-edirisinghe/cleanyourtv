@@ -59,6 +59,11 @@ final class ContinueRow {
         /** Down from the row: into the grid's first row, nearest this screen x. */
         void onContinueDown(float screenX);
 
+        /** Right on the line's last card: on to what stands beyond it (the song's card); false when nothing does. */
+        default boolean onContinueEnd() {
+            return false;
+        }
+
         /** The row appeared or went away: the room under the dock changes. */
         void onContinueShownChanged(boolean shown);
     }
@@ -663,6 +668,7 @@ final class ContinueRow {
                     return true;
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
                     if (at % perLine < perLine - 1 && at + 1 < cards.size()) cards.get(at + 1).requestFocus();
+                    else if (sideways && at == cards.size() - 1) host.onContinueEnd();
                     return true;
                 case KeyEvent.KEYCODE_MENU:
                     if (event.getRepeatCount() == 0) showMenu(item);
