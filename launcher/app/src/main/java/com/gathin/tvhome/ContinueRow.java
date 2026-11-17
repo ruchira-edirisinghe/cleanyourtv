@@ -59,6 +59,11 @@ final class ContinueRow {
         /** Down from the row: into the grid's first row, nearest this screen x. */
         void onContinueDown(float screenX);
 
+        /** Right on the line's last card: on to what stands beyond it (the song's card); false when nothing does. */
+        default boolean onContinueEnd() {
+            return false;
+        }
+
         /** The row appeared or went away: the room under the dock changes. */
         void onContinueShownChanged(boolean shown);
     }
@@ -71,13 +76,15 @@ final class ContinueRow {
     /** Banner-shaped cards, 16:9, four to a line as wide as the dock's tiles reach, with this much between lines. */
     private static final float CARD_W_DP = 186f, CARD_H_DP = 105f, GAP_DP = 20f, LINE_GAP_DP = 18f;
     private static final int PER_LINE = 4;
+    /** Sideways (immersive_home): one line of small 16:9 tiles, the title and the time left under each. */
+    private static final float TILE_W_DP = 152f, TILE_H_DP = 86f, TILE_GAP_DP = 16f, TILE_SCALE = 1.07f;
     private static final float FOCUS_SCALE = 1.08f;
     private static final int STREMIO_PURPLE = 0xFF7B5BF5;
 
     private final Activity activity;
     private final Host host;
     private final float density;
-    private final int cardW, cardH;
+    private int cardW, cardH;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final ExecutorService pictures = Executors.newFixedThreadPool(2);
     private final ExecutorService sync = Executors.newSingleThreadExecutor();
@@ -101,6 +108,14 @@ final class ContinueRow {
     private boolean display;
     /** The lines of cards, one under another. */
     private final LinearLayout strip;
+    /** Cards to a line: four, or every card in one line once sideways. */
+    private int perLine = PER_LINE;
+    private boolean sideways;
+    private android.widget.HorizontalScrollView scroller;
+    /** Sideways: a focused card is scrolled to stay this far in from both screen edges (the dock's inset). */
+    private int keepIn, keepInEnd;
+    /** Sideways: the soft fade at the row's end; a focused card always stops clear of it. */
+    static final float FADE_DP = 64f;
     private final List<WatchHistory.Item> items = new ArrayList<>();
     private final List<View> cards = new ArrayList<>();
     private String signature = "";
@@ -166,14 +181,66 @@ final class ContinueRow {
     void setDisplayFonts() {
         display = true;
         header.setTypeface(UiFont.get(activity, R.string.font_label_bold));
-        header.setLetterSpacing(0.2f);
+        header.setLetterSpacing(sideways ? 0.12f : 0.2f);
         for (TextView chip : chips) chip.setTypeface(UiFont.get(activity, R.string.font_label_bold));
         signature = "";   // the cards are made again with the new faces at the next refresh
     }
 
+    /**
+     * immersive_home: every card in one line that scrolls sideways, as compact glass cards, the line's name in plain case
+     * and no chips. Call before the first refresh.
+     */
+    void setSideways() {
+        if (sideways) return;
+        sideways = true;
+        perLine = 1000;
+        header.setText(R.string.continue_watching);
+        header.setLetterSpacing(0.12f);
+        header.setAllCaps(true);
+        header.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f);
+        header.setTextColor(0xE6FFFFFF);
+        header.setShadowLayer(8 * density, 0f, density, 0x66000000);
+        int at = view.indexOfChild(strip);
+        ViewGroup.LayoutParams lp = strip.getLayoutParams();
+        view.removeView(strip);
+        scroller = new android.widget.HorizontalScrollView(activity) {
+            /**
+             * Keep the focused card inside the dock's edges, with room for its zoom, rather than against the screen
+             * edge where the zoomed card would be cut off.
+             */
+            @Override
+            protected int computeScrollDeltaToGetChildRectOnScreen(android.graphics.Rect rect) {
+                if (getChildCount() == 0) return 0;
+                int zoom = Math.round(cardW * (TILE_SCALE - 1f) / 2f) + dp(4);
+                int left = getScrollX() + keepIn + zoom, right = getScrollX() + getWidth() - keepInEnd - zoom;
+                int delta = rect.right > right ? rect.right - right : rect.left < left ? rect.left - left : 0;
+                int max = Math.max(0, getChildAt(0).getWidth() - getWidth());
+                return Math.max(-getScrollX(), Math.min(delta, max - getScrollX()));
+            }
+        };
+        scroller.setHorizontalScrollBarEnabled(false);
+        scroller.setOverScrollMode(View.OVER_SCROLL_NEVER);
+        // Clipped at its own edges: the row ends at the screen's edge, or before the song's card while one plays.
+        // Cards scrolled past either end fade out over FADE_DP (a focused card always stops clear of the fades). A scroll view with no padding skips its own padding clip, so the row clips
+        // its children (the header and this line, which keeps the cards' zoom room inside the strip's padding).
+        view.setClipChildren(true);
+        scroller.setClipToPadding(true);
+        scroller.setHorizontalFadingEdgeEnabled(true);
+        scroller.setFadingEdgeLength(dp(FADE_DP));
+        scroller.setSmoothScrollingEnabled(true);
+        strip.setPadding(strip.getPaddingLeft(), dp(6), dp(56), dp(6));
+        scroller.addView(strip, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        view.addView(scroller, at, lp);
+        cardW = dp(TILE_W_DP);
+        cardH = dp(TILE_H_DP);
+        signature = "";
+    }
+
     /** The row's height as laid out, for the room under the dock. */
     int heightPx() {
-        int lines = Math.max(1, (cards.size() + PER_LINE - 1) / PER_LINE);
+        // header + gap, then the tile with its zoom room, the title and the line under it
+        if (sideways) return dp(30 + 4 + 6 + TILE_H_DP + 6 + 18 + 1 + 16 + 8);
+        int lines = Math.max(1, (cards.size() + perLine - 1) / perLine);
         // header with its chips (30dp) + gap + zoom room, then each line: card + two text lines + their gaps
         float line = CARD_H_DP + 10 + 20 + 17;
         return dp(30 + 4 + 8 + lines * line + (lines - 1) * LINE_GAP_DP + 4 + 24);
@@ -187,7 +254,23 @@ final class ContinueRow {
     void setStartInset(int px) {
         if (headerRow.getPaddingLeft() == px) return;
         headerRow.setPadding(px, 0, px, 0);   // the dock stands in the middle: as far in from the right
-        strip.setPadding(px, strip.getPaddingTop(), strip.getPaddingRight(), strip.getPaddingBottom());
+        // Sideways the strip runs edge to edge: the same inset at its end, so the last card stops at the dock's edge.
+        strip.setPadding(px, strip.getPaddingTop(), sideways ? px : strip.getPaddingRight(), strip.getPaddingBottom());
+        keepIn = px;
+        keepInEnd = px;
+    }
+
+    /** Sideways: the inset at the row's end (the dock's edge, or just room for the zoom when a card stands there). */
+    void setEndInset(int px) {
+        if (!sideways || keepInEnd == px) return;
+        keepInEnd = px;
+        strip.setPadding(strip.getPaddingLeft(), strip.getPaddingTop(), px, strip.getPaddingBottom());
+    }
+
+    /** Sideways: from the row's top to the top of its cards (under the header), in px. */
+    int cardsTop() {
+        if (!sideways || scroller == null) return 0;
+        return scroller.getTop() + strip.getPaddingTop();
     }
 
     boolean hasFocus() {
@@ -324,7 +407,7 @@ final class ContinueRow {
 
     /** The chips (whenever the row has anything), and the cards the picked one shows. */
     private void rebuild() {
-        boolean showChips = !all.isEmpty();
+        boolean showChips = !all.isEmpty() && !sideways;
         for (TextView chip : chips) chip.setVisibility(showChips ? View.VISIBLE : View.GONE);
         if (!showChips && filter != ALL) {
             filter = ALL;
@@ -345,7 +428,7 @@ final class ContinueRow {
                 focusedKey = i < items.size() ? items.get(i).source + items.get(i).key : "connect";
             }
         }
-        int linesBefore = (cards.size() + PER_LINE - 1) / PER_LINE;
+        int linesBefore = (cards.size() + perLine - 1) / perLine;
         items.clear();
         items.addAll(next);
         cards.clear();
@@ -364,7 +447,7 @@ final class ContinueRow {
         boolean wasShown = shown;
         applyShown();
         // Another number of lines: the room under the dock changes too.
-        if (shown && wasShown && (cards.size() + PER_LINE - 1) / PER_LINE != linesBefore) host.onContinueShownChanged(true);
+        if (shown && wasShown && (cards.size() + perLine - 1) / perLine != linesBefore) host.onContinueShownChanged(true);
         if (focusedIndex >= 0 && shown) {
             int target = Math.min(focusedIndex, cards.size() - 1);
             for (int i = 0; i < items.size(); i++) {
@@ -406,6 +489,8 @@ final class ContinueRow {
             }
         });
         card.setClipToOutline(true);
+        // Sideways: a thin light rim over the picture's edge, like the dock tiles' (the focus ring replaces it).
+        if (sideways && rims) card.setForeground(rim(radius));
 
         ImageView art = new ImageView(activity);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -443,8 +528,9 @@ final class ContinueRow {
                     }
                 });
                 badge.setClipToOutline(true);
-                FrameLayout.LayoutParams badgeLp = new FrameLayout.LayoutParams(dp(20), dp(20), Gravity.TOP | Gravity.START);
-                badgeLp.setMargins(dp(8), dp(8), 0, 0);
+                int badgeSize = dp(sideways ? 16 : 20);
+                FrameLayout.LayoutParams badgeLp = new FrameLayout.LayoutParams(badgeSize, badgeSize, Gravity.TOP | Gravity.START);
+                badgeLp.setMargins(dp(sideways ? 6 : 8), dp(sideways ? 6 : 8), 0, 0);
                 card.addView(badge, badgeLp);
             }
 
@@ -479,7 +565,8 @@ final class ContinueRow {
                 card.addView(track, trackLp);
             }
             // The title's logo over its backdrop, at the bottom left, above the bar or the new episode chip.
-            String imdb = WatchHistory.imdbOf(item);
+            // (Sideways the tile is small and its name is right under it: no logo.)
+            String imdb = sideways ? "" : WatchHistory.imdbOf(item);
             if (!imdb.isEmpty()) {
                 ImageView logo = new ImageView(activity);
                 logo.setAdjustViewBounds(true);
@@ -496,18 +583,30 @@ final class ContinueRow {
             loadCardArt(item, art, card);
         }
 
+        if (sideways) {
+            title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.5f);
+            meta.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11.5f);
+            title.setShadowLayer(6 * density, 0f, density, 0x99000000);
+            meta.setShadowLayer(6 * density, 0f, density, 0x99000000);
+        }
         column.addView(card, new LinearLayout.LayoutParams(cardW, cardH));
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(cardW, ViewGroup.LayoutParams.WRAP_CONTENT);
-        titleLp.topMargin = dp(10);
+        titleLp.topMargin = dp(sideways ? 6 : 10);
         column.addView(title, titleLp);
         LinearLayout.LayoutParams metaLp = new LinearLayout.LayoutParams(cardW, ViewGroup.LayoutParams.WRAP_CONTENT);
         metaLp.topMargin = dp(2);
         column.addView(meta, metaLp);
         title.setAlpha(0.8f);
         meta.setAlpha(0.8f);
+        place(column, card, title, meta, item, index, radius, sideways ? TILE_SCALE : FOCUS_SCALE,
+                sideways ? TILE_GAP_DP : GAP_DP);
+    }
 
+    /** Puts a card in its line and gives it focus, OK, hold and arrow handling. */
+    private void place(View column, View card, TextView title, TextView meta, WatchHistory.Item item, int index,
+                       float radius, float focusScale, float gapDp) {
         LinearLayout line;
-        if (index % PER_LINE == 0) {
+        if (index % perLine == 0) {
             line = new LinearLayout(activity);
             line.setOrientation(LinearLayout.HORIZONTAL);
             line.setClipChildren(false);
@@ -520,20 +619,21 @@ final class ContinueRow {
             line = (LinearLayout) strip.getChildAt(strip.getChildCount() - 1);
         }
         LinearLayout.LayoutParams columnLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        if (index % PER_LINE > 0) columnLp.leftMargin = dp(GAP_DP);
+        if (index % perLine > 0) columnLp.leftMargin = dp(gapDp);
         line.addView(column, columnLp);
         cards.add(card);
 
+        final Drawable rest = card.getForeground();   // the rim, if any
         GradientDrawable ring = new GradientDrawable();
         ring.setCornerRadius(radius);
         ring.setStroke(dp(2.5f), 0xFFFFFFFF);
         ring.setColor(0x00000000);
         card.setOnFocusChangeListener((v, focused) -> {
             v.animate().cancel();
-            v.animate().scaleX(focused ? FOCUS_SCALE : 1f).scaleY(focused ? FOCUS_SCALE : 1f)
-                    .translationZ(focused ? 8 * density : 0f).setDuration(focused ? 200 : 150)
+            v.animate().scaleX(focused ? focusScale : 1f).scaleY(focused ? focusScale : 1f)
+                    .translationZ(focused && !sideways ? 8 * density : 0f).setDuration(focused ? 200 : 150)
                     .setInterpolator(new DecelerateInterpolator(1.5f)).start();
-            card.setForeground(focused ? ring : null);
+            card.setForeground(focused ? ring : rest);
             title.setAlpha(focused ? 1f : 0.8f);
             meta.setAlpha(focused ? 1f : 0.8f);
             if (focused) host.onContinueFocused(v, item);
@@ -551,23 +651,24 @@ final class ContinueRow {
             int at = cards.indexOf(v);
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_UP:
-                    if (at >= PER_LINE) cards.get(at - PER_LINE).requestFocus();
+                    if (at >= perLine) cards.get(at - perLine).requestFocus();
                     else if (chipsShown()) chips[filter].requestFocus();
                     else host.onContinueUp(centerX(v));
                     return true;
                 case KeyEvent.KEYCODE_DPAD_DOWN:
                     // The card under this one, or the last card when the line below is shorter; past the last line, on.
-                    if (at / PER_LINE < (cards.size() - 1) / PER_LINE) {
-                        cards.get(Math.min(at + PER_LINE, cards.size() - 1)).requestFocus();
+                    if (at / perLine < (cards.size() - 1) / perLine) {
+                        cards.get(Math.min(at + perLine, cards.size() - 1)).requestFocus();
                     } else {
                         host.onContinueDown(centerX(v));
                     }
                     return true;
                 case KeyEvent.KEYCODE_DPAD_LEFT:
-                    if (at % PER_LINE > 0) cards.get(at - 1).requestFocus();
+                    if (at % perLine > 0) cards.get(at - 1).requestFocus();
                     return true;
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    if (at % PER_LINE < PER_LINE - 1 && at + 1 < cards.size()) cards.get(at + 1).requestFocus();
+                    if (at % perLine < perLine - 1 && at + 1 < cards.size()) cards.get(at + 1).requestFocus();
+                    else if (sideways && at == cards.size() - 1) host.onContinueEnd();
                     return true;
                 case KeyEvent.KEYCODE_MENU:
                     if (event.getRepeatCount() == 0) showMenu(item);
@@ -576,6 +677,15 @@ final class ContinueRow {
                     return false;
             }
         });
+    }
+
+    private String appLabel(String pkg) {
+        try {
+            PackageManager pm = activity.getPackageManager();
+            return pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString();
+        } catch (PackageManager.NameNotFoundException e) {
+            return "";
+        }
     }
 
     private TextView text(float sp, int color, boolean medium) {
@@ -630,7 +740,7 @@ final class ContinueRow {
         if (cards.isEmpty()) return false;
         View best = null;
         float bestD = Float.MAX_VALUE;
-        for (View c : cards.subList(0, Math.min(PER_LINE, cards.size()))) {
+        for (View c : sideways ? cards : cards.subList(0, Math.min(perLine, cards.size()))) {
             float d = Math.abs(centerX(c) - screenX);
             if (d < bestD) {
                 bestD = d;
@@ -685,6 +795,22 @@ final class ContinueRow {
     }
 
     /** The cover for the top banner, at the screen's width: from memory, the disk or the web. */
+    /** Sideways: each tile has a thin light rim, like the dock tiles. */
+    private boolean rims;
+
+    void setRims(boolean on) {
+        if (rims == on) return;
+        rims = on;
+        signature = "";   // made again with them at the next refresh
+    }
+
+    /** The immersive Home's scrim, painted into each cover as it is decoded (ShadeBaker); null for none. */
+    private ShadeBaker coverShade;
+
+    void setCoverShade(ShadeBaker shade) {
+        coverShade = shade;
+    }
+
     void cover(WatchHistory.Item item, int width, Consumer<Bitmap> done) {
         String src = !item.cover.isEmpty() ? item.cover : item.art;
         if (src.isEmpty()) {
@@ -697,7 +823,8 @@ final class ContinueRow {
             return;
         }
         pictures.execute(() -> {
-            Bitmap b = picture(activity, src, width);
+            Bitmap decoded = picture(activity, src, width);
+            Bitmap b = coverShade != null ? coverShade.bake(decoded) : decoded;
             main.post(() -> {
                 if (b != null) covers.put(src, b);
                 done.accept(b);
@@ -899,6 +1026,22 @@ final class ContinueRow {
         if (linkDialog != null) linkDialog.dismiss();
         pictures.shutdownNow();
         sync.shutdownNow();
+    }
+
+    /**
+     * A thin light rim over a picture's edge, like the dock tiles': one stroke drawn over it, so no frame, no extra
+     * clip and no glass shader under the whole picture (which cost the TV's GPU far more than the rim that shows).
+     */
+    static GradientDrawable rim(float radiusPx, float density) {
+        GradientDrawable d = new GradientDrawable();
+        d.setCornerRadius(radiusPx);
+        d.setColor(0x00000000);
+        d.setStroke(Math.max(1, Math.round(density)), 0x66FFFFFF);
+        return d;
+    }
+
+    private GradientDrawable rim(float radiusPx) {
+        return rim(radiusPx, density);
     }
 
     private int dp(float v) {

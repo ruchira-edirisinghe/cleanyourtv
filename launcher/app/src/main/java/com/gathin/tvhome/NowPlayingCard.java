@@ -49,14 +49,22 @@ final class NowPlayingCard extends FrameLayout {
     private NowPlaying.Track track;
     /** The card's height without the cover, once laid out (0 before). */
     private int chrome;
+    /** The upright card's column (the cover, then the song's lines); fitSquare lays it over the cover. */
+    private LinearLayout column;
+    /** fitSquare: the cover fills the whole square card and the song's lines sit over its lower part. */
+    private boolean square;
+    /** The foreground while not focused: the square card's rim, else nothing. */
+    private Drawable rest;
     /** A song to show, and whether its place lets it show now (Home hides it once the apps scroll). */
     private boolean hasSong, allowed = true, visibleNow;
+    /** The song plays (the bars dance, the time runs); false shows the last one, stopped. */
+    private boolean playing = true;
 
     private final Runnable tick = new Runnable() {
         @Override
         public void run() {
             removeCallbacks(this);
-            if (!visibleNow || track == null) return;
+            if (!visibleNow || track == null || !playing) return;
             showTime();
             postDelayed(this, TICK_MS);
         }
@@ -140,7 +148,7 @@ final class NowPlayingCard extends FrameLayout {
         LinearLayout.LayoutParams al = new LinearLayout.LayoutParams(-1, -2);
         al.topMargin = dp(2);
         if (upright) {
-            LinearLayout column = new LinearLayout(context);
+            column = new LinearLayout(context);
             column.setOrientation(LinearLayout.VERTICAL);
             column.setPadding(dp(PAD), dp(PAD), dp(PAD), dp(PAD));
             column.addView(art, new LinearLayout.LayoutParams(dp(ART), dp(ART)));
@@ -206,6 +214,40 @@ final class NowPlayingCard extends FrameLayout {
         }
     }
 
+    /**
+     * Home's immersive layout: the card is a square this big and the cover fills all of it, uncropped; the kicker, the
+     * song's name, the artist and the time bar sit over the cover's lower part on a dark shade that keeps them readable.
+     */
+    void fitSquare(int sizePx) {
+        if (!upright || sizePx <= 0) return;
+        if (!square) {
+            square = true;
+            column.removeView(art);
+            art.setOutlineProvider(null);
+            art.setClipToOutline(false);
+            addView(art, 0, new FrameLayout.LayoutParams(-1, -1));
+            GradientDrawable shade = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                    new int[]{0x00000000, 0x99000000, 0xD9000000, 0xF2000000});
+            column.setBackground(shade);
+            column.setPadding(dp(16), dp(64), dp(16), dp(14));
+            title.setMaxLines(2);
+            title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+            LinearLayout.MarginLayoutParams topl = (LinearLayout.MarginLayoutParams) column.getChildAt(0).getLayoutParams();
+            topl.topMargin = 0;
+            FrameLayout.LayoutParams cl = new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM);
+            column.setLayoutParams(cl);
+            setBackground(null);   // the cover covers it
+            rest = ContinueRow.rim(dp(22), density);   // a thin rim over the cover's edge, like the dock tiles'
+            if (!hasFocus()) setForeground(rest);
+        }
+        ViewGroup.LayoutParams lp = getLayoutParams();
+        if (lp != null && (lp.width != sizePx || lp.height != sizePx)) {
+            lp.width = sizePx;
+            lp.height = sizePx;
+            setLayoutParams(lp);
+        }
+    }
+
     /** The card's width now, in px. */
     int targetWidth() {
         ViewGroup.LayoutParams lp = getLayoutParams();
@@ -215,19 +257,55 @@ final class NowPlayingCard extends FrameLayout {
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
-        if (h > 0) chrome = h - art.getLayoutParams().height;
+        if (h > 0 && !square) chrome = h - art.getLayoutParams().height;
+    }
+
+    /** The playing app's package, or null with no song. */
+    String playingPackage() {
+        return track == null ? null : track.pkg;
+    }
+
+    /**
+     * Home's immersive layout: the card takes focus like a tile (a light ring and a small zoom) and OK opens the app
+     * that plays.
+     */
+    void makeFocusable(Runnable open) {
+        setFocusable(true);
+        setClickable(true);
+        setDefaultFocusHighlightEnabled(false);
+        setOnClickListener(v -> open.run());
+        android.graphics.drawable.GradientDrawable ring = new android.graphics.drawable.GradientDrawable();
+        ring.setCornerRadius(dp(22));
+        ring.setStroke(dp(3), Color.WHITE);
+        ring.setColor(0x00000000);
+        setOnFocusChangeListener((v, has) -> {
+            setForeground(has ? ring : rest);
+            animate().scaleX(has ? 1.04f : 1f).scaleY(has ? 1.04f : 1f).setDuration(180).start();
+        });
     }
 
     /** Shows this song (null: nothing plays, the card fades out). */
     void setTrack(NowPlaying.Track t) {
+        setTrack(t, true);
+    }
+
+    /** Shows this song, playing or stopped (the last one played, "Last played", the bars still); null fades it out. */
+    void setTrack(NowPlaying.Track t, boolean playing) {
         NowPlaying.Track before = track;
+        boolean wasPlaying = this.playing;
         track = t;
+        this.playing = playing;
         hasSong = t != null;
         if (t != null) {
-            if (!t.sameSong(before)) showSong(t);
+            if (!t.sameSong(before) || wasPlaying != playing) showSong(t);
             showTime();
         }
         settle();
+        if (visibleNow && wasPlaying != playing) {
+            bars.setRunning(playing);
+            removeCallbacks(tick);
+            if (playing) post(tick);
+        }
     }
 
     /** Whether the card's place lets it show (false fades it out even while a song plays). */
@@ -235,6 +313,11 @@ final class NowPlayingCard extends FrameLayout {
         if (this.allowed == allowed) return;
         this.allowed = allowed;
         settle();
+    }
+
+    /** The shown song's name, or "" with none. */
+    String songTitle() {
+        return track == null ? "" : track.title;
     }
 
     boolean hasSong() {
@@ -245,7 +328,8 @@ final class NowPlayingCard extends FrameLayout {
         if (t.art != null) art.setImageBitmap(t.art);
         else art.setImageDrawable(appIcon(t.pkg));
         String app = upright ? "" : appLabel(t.pkg);   // the upright card has no room for the app's name
-        String head = app.isEmpty() ? getContext().getString(R.string.now_playing)
+        String head = !playing ? getContext().getString(R.string.now_playing_last)
+                : app.isEmpty() ? getContext().getString(R.string.now_playing)
                 : getContext().getString(R.string.now_playing_on, app);
         kicker.setText(head.toUpperCase(Locale.getDefault()));
         title.setText(t.title);
@@ -278,8 +362,9 @@ final class NowPlayingCard extends FrameLayout {
         if (show) {
             setVisibility(View.VISIBLE);
             animate().alpha(1f).setDuration(FADE_MS).start();
-            bars.setRunning(true);
-            post(tick);
+            bars.setRunning(playing);
+            showTime();
+            if (playing) post(tick);
         } else {
             removeCallbacks(tick);
             bars.setRunning(false);

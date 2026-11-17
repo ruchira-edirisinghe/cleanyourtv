@@ -23,6 +23,7 @@
         <item>com.spotify.tv.android</item>
         <item>tv.twitch.android.app</item>
         <item>com.tcl.browser</item>
+        <item>com.tcl.magiconnectfree</item>
     </string-array>
     <!-- With fewer dock_apps than columns (or a dock app that is not installed), the free dock slots take
          the first grid apps, so the dock never shows a gap. false leaves them empty (#162); a theme can
@@ -408,7 +409,7 @@
 
     <!-- Tiles per row in the grid; the dock always has this many slots. Tiles are 180dp wide at 4 columns and
          shrink to fit from 5 up (about 144dp at 5, 117dp at 6 on a 1080p TV). -->
-    <integer name="columns">6</integer>
+    <integer name="columns">7</integer>
 
     <!-- Basic motion is on; advanced effects are opt-in in the launcher's own Settings screen. -->
     <bool name="animations">true</bool>
@@ -573,6 +574,12 @@
          with one row their menus drop under them as in the usual bar. Can also be set with "top_bar_grid_columns" in a
          theme's config.json. -->
     <integer name="top_bar_grid_columns">4</integer>
+    <!-- Home as a lock screen: the date over a large time in the middle, blended into the wallpaper (or the focused
+         app's banner) so the picture shows through the digits; Inputs and Wi-Fi at the top left, Settings and Apps at
+         the top right; Continue watching as one line of compact cards that scrolls sideways, right over the dock. The
+         app's name over the dock and the Continue watching chips are left out. Needs dock_row, not single_row. Can also
+         be set with "immersive_home" in a theme's config.json. -->
+    <bool name="immersive_home">true</bool>
     <string name="weather_location" translatable="false"></string>
     <bool name="weather_fahrenheit">false</bool>
     <!-- true: when the focus moves to an app of another colour, the ambient glow takes the new colour in one frame

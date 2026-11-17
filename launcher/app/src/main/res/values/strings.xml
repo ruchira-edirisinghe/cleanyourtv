@@ -190,6 +190,10 @@
     <string name="continue_filter_none">Nothing here yet</string>
     <!-- now_playing: the kicker over the song that plays; the screensaver's wider card names the app. -->
     <string name="now_playing">Now playing</string>
+    <!-- The song's card on the immersive Home after the music stopped (or after the TV starts): the last song, paused. -->
+    <string name="now_playing_last">Paused</string>
+    <!-- Hold OK on that card: hides it until its music app is opened from Home again. -->
+    <string name="now_playing_hide">Hide until %1$s opens again</string>
     <string name="now_playing_on">Now playing on %1$s</string>
     <string name="weather_degrees">%1$d°</string>
     <string name="weather_clear">Clear</string>

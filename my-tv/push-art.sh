@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Push this TV's banner and icon art, and any fonts in fonts/, to the launcher's theme folder, then restart Home.
+# Push this TV's banner, wallpaper and icon art, and any fonts in fonts/, to the launcher's theme folder, then restart Home.
 #
 #   TV_HOST=<tv ip>:<port> bash my-tv/push-art.sh
 #   ADB=/path/to/adb TV_HOST=... bash my-tv/push-art.sh     (when adb is not on PATH)
@@ -19,7 +19,7 @@ a() { "$ADB" -s "$TV_HOST" "$@"; }
 
 shopt -s nullglob
 # fonts/ is git-ignored: fonts that may not be shared (font_label.ttf and the like, see README) only go to the TV.
-for f in heroes/*.jpg icons/*.png fonts/font_*.ttf fonts/font_*.otf; do
+for f in config.json heroes/*.jpg icons/*.png wallpapers/*.jpg fonts/font_*.ttf fonts/font_*.otf; do
   a push -q "$f" "$TMP" >/dev/null 2>&1 || a push "$f" "$TMP" >/dev/null
   a shell "content write --uri $URI/$f < $TMP && rm -f $TMP"
   echo "pushed $f"

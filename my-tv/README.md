@@ -19,10 +19,43 @@ APK: the launcher reads them from its theme folder on the TV.
 | Folder | What it is | Launcher switch |
 |---|---|---|
 | `heroes/<package>.jpg` | A 1920x1080 banner for each dock app, shown at the top when that app is focused. `input.playstation.jpg` is the PlayStation tile's | `hero_banners` (with `cinematic_home`) |
-| `icons/<package>.png` | A 320x320 glossy icon for each app in the grid under the dock; the grid's colour wash is taken from it | `icon_grid`, `grid_glow` |
+| `icons/<package>.png` | A 320x320 glossy icon for each app in the grid under the dock, and for the dock's square tiles while a song plays; the grid's colour wash is taken from it | `icon_grid`, `grid_glow` |
+| `wallpapers/*.jpg` | 1920x1080 lock-screen wallpapers behind the immersive Home, rotated by `config.json` | `immersive_home` |
 
 All of it was made with Higgsfield (GPT Image 2.5). The banner prompts are in [`heroes/PROMPTS.md`](heroes/PROMPTS.md);
 the icons come from [`icons/gen_icons.py`](icons/gen_icons.py), which skips any icon that is already there.
+
+## Immersive Home
+
+![Immersive Home: the date over a large time blended into the focused app's banner, Continue watching over the seven-app dock](screenshots/home-immersive.jpg)
+
+`immersive_home` turns Home into a lock screen. The date stands over a large time in the middle, and the time is
+blended into the picture behind it rather than painted on top: an overlay pass lifts the picture inside the digits and
+a faint white pass frosts them, so the wallpaper or the focused app's banner shows through the numbers and their colour
+changes with it (`ImmersiveClock`). Wi-Fi and Inputs sit at the top left, Apps and Settings at the top right.
+
+Home starts on the wallpaper with nothing selected: no highlight and no app's banner, only the clock over the
+wallpaper, with Continue watching and the dock below. When the TV is switched on it comes up with an intro: the
+picture rises out of black while settling from a slight zoom, the date and the time rise into it, the top buttons ease
+in, then Continue watching and the dock rise from below. The same "nothing selected" stop sits between the top
+buttons and Continue watching, and Home and Back on Home go back to it.
+
+Continue watching is one line of compact glass cards that scrolls sideways from screen edge to screen edge: a 4:3
+picture cropped from the middle of the art, then the app, the title, the episode or channel with the time left, and
+how far in. Cards scrolled past either end fade out, and a focused card always stops clear of the fades. Focusing a
+card puts its cover behind everything, as a dock app puts its banner. The dock holds seven apps (`columns` 7).
+
+![While a song plays: its card at the right of Continue watching and the dock, the dock's tiles as glossy squares](screenshots/home-immersive-song.jpg)
+
+While a song plays, its card stands at the right, as wide as two dock tiles and as tall as Continue watching's cards
+and the dock together. The dock steps aside for it: its tiles turn into squares that show each app's glossy icon from
+`icons/` and fill the room left, and Continue watching ends, fading, before the card. Right from the last dock tile
+selects the card and OK opens the app that plays. When the music stops, the banners come back.
+
+The wallpapers are in [`wallpapers/`](wallpapers) (prompts in [`wallpapers/PROMPTS.md`](wallpapers/PROMPTS.md)).
+[`config.json`](config.json) is the theme file that turns their rotation on; Home moves to the next one each time the
+TV is switched on. Set `immersive_home` to false in `config.xml` (or `"immersive_home": false` in a theme) to go back
+to the clock at the top left, the four buttons at the top right and Continue watching under the dock.
 
 ## Put it on the TV
 

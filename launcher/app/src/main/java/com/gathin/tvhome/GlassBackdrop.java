@@ -50,6 +50,18 @@ final class GlassBackdrop {
         users.add(new WeakReference<>(d));
     }
 
+    /** A layer drawn from a small software copy (a GPU-only bitmap cannot be drawn here); null leaves it to draw itself. */
+    private View standIn;
+    private java.util.function.Supplier<Bitmap> standInPicture;
+    private final android.graphics.Paint standInPaint = new android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG);
+    private final android.graphics.Rect standInRect = new android.graphics.Rect();
+
+    /** This layer is drawn from the picture the supplier gives (the wallpaper's small copy). */
+    void setStandIn(View layer, java.util.function.Supplier<Bitmap> picture) {
+        standIn = layer;
+        standInPicture = picture;
+    }
+
     /** Home: draws these full-screen layers (children of root, in order) as they are now, alpha included. */
     void capture(ViewGroup root, View... layers) {
         if (root.getWidth() <= 0 || root.getHeight() <= 0) return;
@@ -64,6 +76,13 @@ final class GlassBackdrop {
             int save = v.getAlpha() < 0.99f
                     ? c.saveLayerAlpha(v.getLeft(), v.getTop(), v.getRight(), v.getBottom(), Math.round(v.getAlpha() * 255))
                     : c.save();
+            Bitmap small = v == standIn && standInPicture != null ? standInPicture.get() : null;
+            if (small != null) {
+                standInRect.set(v.getLeft(), v.getTop(), v.getRight(), v.getBottom());
+                c.drawBitmap(small, null, standInRect, standInPaint);
+                c.restoreToCount(save);
+                continue;
+            }
             c.translate(v.getLeft() + v.getTranslationX(), v.getTop() + v.getTranslationY());
             try {
                 v.draw(c);

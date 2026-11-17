@@ -46,11 +46,21 @@ final class WallpaperPlayer {
     private final int height;
     /** wallpaper_dim as an ARGB black, painted into each picture once instead of a full-screen shade view. */
     private final int dimColor;
+    /** The immersive Home's scrim, painted into each picture like the dim; null for none. */
+    private final ShadeBaker shade;
     /** The picture on screen, released once the next one has been drawn. */
     private Bitmap current;
+    /**
+     * Small software copies of the decoded pictures, for the glass (GlassBackdrop draws on a software canvas, which
+     * cannot draw the GPU-only bitmap on screen, so the glass showed black where the wallpaper is).
+     */
+    private final java.util.Map<Bitmap, Bitmap> thumbs =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
     private boolean active;
     private boolean closed;
     private boolean loading;
+    /** advance(): the next picture now, whatever the rotation interval says. */
+    private boolean forceNext;
     private String displayed = "";
     /** wallpaper_captions: the shown picture's name from wallpapers/captions.txt; null when off or there are none. */
     private final TextView caption;
@@ -63,6 +73,12 @@ final class WallpaperPlayer {
     private int[] sun;
 
     WallpaperPlayer(Context context, FrameLayout root, Config config) {
+        this(context, root, config, null);
+    }
+
+    /** @param shade painted into each picture as it is decoded (the immersive Home's scrim), or null. */
+    WallpaperPlayer(Context context, FrameLayout root, Config config, ShadeBaker shade) {
+        this.shade = shade;
         this.root = root;
         backgroundColor = config.backgroundColor;
         files = new ArrayList<>(config.wallpapers);
@@ -159,6 +175,18 @@ final class WallpaperPlayer {
         return WallpaperMood.select(files, moods, WallpaperMood.timeOfDay(now.getHour() * 60 + now.getMinute(), sun[0], sun[1]));
     }
 
+    /** The next picture of the collection, now (immersive_home: each time the TV is switched on). */
+    void advance() {
+        if (files.size() < 2) return;
+        forceNext = true;
+        update();
+    }
+
+    /** The view the picture is drawn in, or null when there is no wallpaper. */
+    View view() {
+        return image.getParent() != null ? image : null;
+    }
+
     void close() {
         active = false;
         closed = true;
@@ -172,9 +200,10 @@ final class WallpaperPlayer {
         List<File> playable = playable();
         File selected = WallpaperRotation.find(playable, previous);
         long changed = preferences.getLong("changed", 0);
-        if (selected == null || WallpaperRotation.due(changed, System.currentTimeMillis(), interval)) {
+        if (selected == null || forceNext || WallpaperRotation.due(changed, System.currentTimeMillis(), interval)) {
             selected = WallpaperRotation.pick(playable, previous, order, random);
         }
+        forceNext = false;
         if (selected == null || selected.getName().equals(displayed)) return;
         File next = selected;
         loading = true;
@@ -259,6 +288,12 @@ final class WallpaperPlayer {
         return key.toString();
     }
 
+    /** A small software copy of the picture on screen, for the glass; null when there is none. */
+    Bitmap glassThumb() {
+        Bitmap shown = current;
+        return shown == null ? null : thumbs.get(shown);
+    }
+
     /** Puts a picture on screen and releases the previous one after a frame has drawn the new one. */
     private void show(Bitmap bitmap) {
         Bitmap old = current;
@@ -287,15 +322,21 @@ final class WallpaperPlayer {
                 options.inTargetDensity = scale[1];
             }
             options.inPreferredConfig = bitmapConfig;
-            options.inMutable = dimColor != 0;
+            options.inMutable = dimColor != 0 || shade != null;
             Bitmap decoded = BitmapFactory.decodeFile(file.getPath(), options);
             if (decoded == null) return null;
             if (dimColor != 0) new Canvas(decoded).drawColor(dimColor);
+            if (shade != null) shade.draw(new Canvas(decoded), decoded.getWidth(), decoded.getHeight());
             // One copy in GPU memory instead of a software bitmap plus its texture; the decode stays off the UI
             // thread for rotations, and Home's return no longer uploads 4-8 MB to the GPU.
+            Bitmap thumb = Bitmap.createScaledBitmap(decoded, GlassBackdrop.W, GlassBackdrop.H, true);
             Bitmap gpu = decoded.copy(Bitmap.Config.HARDWARE, false);
-            if (gpu == null) return decoded;
+            if (gpu == null) {
+                thumbs.put(decoded, thumb);
+                return decoded;
+            }
             decoded.recycle();
+            thumbs.put(gpu, thumb);
             return gpu;
         } catch (Exception | OutOfMemoryError failure) {
             return null;
