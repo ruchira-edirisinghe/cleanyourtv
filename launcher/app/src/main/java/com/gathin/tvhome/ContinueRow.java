@@ -631,7 +631,7 @@ final class ContinueRow {
         card.setOnFocusChangeListener((v, focused) -> {
             v.animate().cancel();
             v.animate().scaleX(focused ? focusScale : 1f).scaleY(focused ? focusScale : 1f)
-                    .translationZ(focused ? 8 * density : 0f).setDuration(focused ? 200 : 150)
+                    .translationZ(focused && !sideways ? 8 * density : 0f).setDuration(focused ? 200 : 150)
                     .setInterpolator(new DecelerateInterpolator(1.5f)).start();
             card.setForeground(focused ? ring : rest);
             title.setAlpha(focused ? 1f : 0.8f);
