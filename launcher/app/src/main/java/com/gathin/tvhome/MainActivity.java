@@ -1498,6 +1498,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         super.onStop();
         started = false;
         if (immersiveClock != null) immersiveClock.finishIntro();
+        if (immersive) endIntro();
         unregisterReceiver(timeReceiver);
         clockRefresh.stop();
         handler.removeCallbacks(clockCheck);
@@ -2171,12 +2172,12 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void setUpLiquidGlass(Config cfg) {
         glassBackdrop = new GlassBackdrop();
-        if (immersive && continueRow != null) continueRow.setGlass(glassBackdrop);
         LinearLayout block = findViewById(R.id.leftBlock);
         View content = (View) block.getParent().getParent();
         List<View> layers = new ArrayList<>();
         for (int i = 0; i < root.getChildCount() && root.getChildAt(i) != content; i++) layers.add(root.getChildAt(i));
         glassLayers = layers.toArray(new View[0]);
+        if (wallpaperPlayer.view() != null) glassBackdrop.setStandIn(wallpaperPlayer.view(), wallpaperPlayer::glassThumb);
         boolean rtlBar = getResources().getBoolean(R.bool.rtl_menu_bar);
         boolean plain = !cfg.dateBelowClock && !cfg.topMenu && !rtlBar;
 
@@ -2731,6 +2732,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
 
             @Override
+            public boolean onContinueEnd() {
+                if (!immersive || nowPlayingCard == null || !songMode || !nowPlayingCard.requestFocus()) return false;
+                grid.playSoundEffect(SoundEffectConstants.NAVIGATION_RIGHT);
+                return true;
+            }
+
+            @Override
             public void onContinueDown(float screenX) {
                 if (immersive) {
                     focusNearestTile(screenX, 0, Math.min(adapter.dockFilled(), COLUMNS));
@@ -2752,7 +2760,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         if (immersive) continueRow.setSideways();
         continueRow.setCoverShade(shadeBaker);
-        if (immersive) continueRow.setGlass(glassBackdrop);
+        if (immersive) continueRow.setRims(true);
         ViewGroup wrapper = (ViewGroup) grid.getParent();
         wrapper.addView(continueRow.view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -2875,8 +2883,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         lens.addState(new int[]{android.R.attr.state_focused}, new GlassDrawable(glassBackdrop, GlassDrawable.MILK, r, density));
         lens.addState(new int[]{android.R.attr.state_activated},
                 new GlassDrawable(glassBackdrop, GlassDrawable.ACTIVE, r, density));
-        lens.addState(new int[0], new GlassDrawable(glassBackdrop, immersive ? GlassDrawable.BRIGHT : GlassDrawable.CLEAR,
-                r, density));
+        lens.addState(new int[0], new GlassDrawable(glassBackdrop, GlassDrawable.CLEAR, r, density));
         button.setBackground(lens);
     }
 
@@ -3213,6 +3220,35 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         hideRows(true);
         fadeScrim(scrimShadeAlpha, 0);
         root.postDelayed(this::showRows, 900);
+    }
+
+    /** Home left (or the TV off) half way through the intro: everything where it ends, so nothing stays half faded. */
+    private void endIntro() {
+        View wall = wallpaperPlayer.view();
+        if (wall != null) {
+            wall.animate().cancel();
+            wall.setAlpha(1f);
+            wall.setScaleX(1f);
+            wall.setScaleY(1f);
+        }
+        View bar = findViewById(R.id.topButtons);
+        bar.animate().cancel();
+        bar.setAlpha(1f);
+        bar.setTranslationY(0f);
+        if (rowsHidden) {
+            rowsHidden = false;
+            View row = continueRow != null ? continueRow.view : null;
+            for (View v : new View[]{row, grid}) {
+                if (v == null) continue;
+                v.animate().cancel();
+                v.setAlpha(1f);
+                if (v == grid) v.setTranslationY(0f);
+            }
+            if (nowPlayingCard != null && nowPlayingCard.hasSong()) {
+                nowPlayingCard.animate().cancel();
+                nowPlayingCard.setAlpha(1f);
+            }
+        }
     }
 
     /** Keep watching in one line right over the dock's band, lined up with the dock's first tile. */

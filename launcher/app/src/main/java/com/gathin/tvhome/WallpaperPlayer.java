@@ -50,6 +50,12 @@ final class WallpaperPlayer {
     private final ShadeBaker shade;
     /** The picture on screen, released once the next one has been drawn. */
     private Bitmap current;
+    /**
+     * Small software copies of the decoded pictures, for the glass (GlassBackdrop draws on a software canvas, which
+     * cannot draw the GPU-only bitmap on screen, so the glass showed black where the wallpaper is).
+     */
+    private final java.util.Map<Bitmap, Bitmap> thumbs =
+            java.util.Collections.synchronizedMap(new java.util.WeakHashMap<>());
     private boolean active;
     private boolean closed;
     private boolean loading;
@@ -282,6 +288,12 @@ final class WallpaperPlayer {
         return key.toString();
     }
 
+    /** A small software copy of the picture on screen, for the glass; null when there is none. */
+    Bitmap glassThumb() {
+        Bitmap shown = current;
+        return shown == null ? null : thumbs.get(shown);
+    }
+
     /** Puts a picture on screen and releases the previous one after a frame has drawn the new one. */
     private void show(Bitmap bitmap) {
         Bitmap old = current;
@@ -317,9 +329,14 @@ final class WallpaperPlayer {
             if (shade != null) shade.draw(new Canvas(decoded), decoded.getWidth(), decoded.getHeight());
             // One copy in GPU memory instead of a software bitmap plus its texture; the decode stays off the UI
             // thread for rotations, and Home's return no longer uploads 4-8 MB to the GPU.
+            Bitmap thumb = Bitmap.createScaledBitmap(decoded, GlassBackdrop.W, GlassBackdrop.H, true);
             Bitmap gpu = decoded.copy(Bitmap.Config.HARDWARE, false);
-            if (gpu == null) return decoded;
+            if (gpu == null) {
+                thumbs.put(decoded, thumb);
+                return decoded;
+            }
             decoded.recycle();
+            thumbs.put(gpu, thumb);
             return gpu;
         } catch (Exception | OutOfMemoryError failure) {
             return null;
