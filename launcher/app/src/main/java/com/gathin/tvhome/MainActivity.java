@@ -2176,6 +2176,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         List<View> layers = new ArrayList<>();
         for (int i = 0; i < root.getChildCount() && root.getChildAt(i) != content; i++) layers.add(root.getChildAt(i));
         glassLayers = layers.toArray(new View[0]);
+        if (wallpaperPlayer.view() != null) glassBackdrop.setStandIn(wallpaperPlayer.view(), wallpaperPlayer::glassThumb);
         boolean rtlBar = getResources().getBoolean(R.bool.rtl_menu_bar);
         boolean plain = !cfg.dateBelowClock && !cfg.topMenu && !rtlBar;
 
