@@ -225,7 +225,7 @@ final class NowPlayingCard extends FrameLayout {
             // The cover and the song's lines over it, in a rounded box set a few dp into the card's glass.
             FrameLayout box = new FrameLayout(getContext());
             box.setClipToOutline(true);
-            box.setOutlineProvider(rounded(15));
+            box.setOutlineProvider(rounded(20.5f));
             column.removeView(art);
             art.setOutlineProvider(null);
             art.setClipToOutline(false);
@@ -233,7 +233,7 @@ final class NowPlayingCard extends FrameLayout {
             removeView(column);
             box.addView(column);
             FrameLayout.LayoutParams bl = new FrameLayout.LayoutParams(-1, -1);
-            bl.setMargins(dp(7), dp(7), dp(7), dp(7));
+            bl.setMargins(dp(1.5f), dp(1.5f), dp(1.5f), dp(1.5f));   // a thin rim, like the dock tiles' edge
             addView(box, 0, bl);
             GradientDrawable shade = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                     new int[]{0x00000000, 0x99000000, 0xD9000000, 0xF2000000});

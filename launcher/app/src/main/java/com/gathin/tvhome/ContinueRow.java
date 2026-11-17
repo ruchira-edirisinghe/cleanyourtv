@@ -487,7 +487,7 @@ final class ContinueRow {
         // Sideways, in glass: the picture and all on it sit in a frame of Home's glass, a few dp in from the edge.
         FrameLayout pic = card;
         if (sideways && glass != null) {
-            final float frame = 5 * density;
+            final float frame = 1.5f * density;   // a thin rim, like the dock tiles' edge
             card.setBackground(new GlassDrawable(glass, GlassDrawable.BRIGHT, radius, density));
             pic = new FrameLayout(activity);
             pic.setBackground(fill);
