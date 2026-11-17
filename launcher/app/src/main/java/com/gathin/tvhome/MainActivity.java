@@ -308,7 +308,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** immersive_home while a song plays: its card stands at the right of Continue watching and the dock. */
     private boolean songMode;
     private int baseGridPadRight = -1;
-    private View introCurtain;
     private final BroadcastReceiver screenOnReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -3187,20 +3186,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Apple-like: long and soft, everything fading up with little travel, one thing gently after another.
         android.view.animation.Interpolator ease = new android.view.animation.PathInterpolator(0.16f, 1f, 0.3f, 1f);
         android.view.animation.Interpolator soft = new android.view.animation.PathInterpolator(0.33f, 0f, 0.2f, 1f);
-        if (introCurtain == null) {
-            introCurtain = new View(this);
-            introCurtain.setBackgroundColor(Color.BLACK);
-            introCurtain.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-            root.addView(introCurtain, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT));
-        }
-        introCurtain.animate().cancel();
-        introCurtain.bringToFront();
-        introCurtain.setVisibility(View.VISIBLE);
-        introCurtain.setAlpha(1f);
-        introCurtain.animate().alpha(0f).setStartDelay(80).setDuration(1500).setInterpolator(soft)
-                .withEndAction(() -> introCurtain.setVisibility(View.GONE)).start();
-
+        // The picture itself comes up out of the black behind it: no curtain over everything, which on the TV's GPU
+        // would be one more full-screen layer on every frame of the intro.
         View wall = wallpaperPlayer.view();
         for (View picture : new View[]{wall, heroArt}) {
             if (picture == null) continue;
@@ -3208,6 +3195,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             picture.setScaleX(1.06f);
             picture.setScaleY(1.06f);
             picture.animate().scaleX(1f).scaleY(1f).setStartDelay(0).setDuration(3200).setInterpolator(ease).start();
+        }
+        if (wall != null) {
+            wall.setAlpha(0f);
+            wall.animate().alpha(1f).setStartDelay(80).setDuration(1500).setInterpolator(soft).start();
         }
         if (immersiveClock != null) immersiveClock.playIntro(350, 1800);
 
