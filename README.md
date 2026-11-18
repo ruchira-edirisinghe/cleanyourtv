@@ -23,6 +23,43 @@
   <a href="docs/PRESS.md"><img src="docs/card.jpg" alt="433 TV models · 114 brands · 31 languages · 572 KB launcher. Featured in TechCrunch, TechRadar, Tom's Guide, Mashable, Android Authority, XDA, FlatpanelsHD, It's FOSS, Phandroid, GIGAZINE, Xataka, WinFuture, Frandroid, Macitynet, Techaeris, TechPP and 396 more: 412 articles from 54 countries. Before: stock Google TV home with a sponsored ad. After: the Clean Your TV launcher." width="800"></a>
 </p>
 
+## This fork: My TV, with two themes
+
+This is [ruchira-edirisinghe](https://github.com/ruchira-edirisinghe)'s fork of CleanYourTV, made for a TCL Smart TV
+Pro (G08, Google TV 14). It keeps everything below (the debloat lists, the tools and the reference launcher) and adds
+two themes for the launcher, built on new launcher features. Everything for it lives in [`my-tv/`](my-tv/).
+
+| Lumen | Midnight Glass |
+|---|---|
+| [![Lumen: the date over a large time on the wallpaper, Continue watching, the dock and the last song, paused](my-tv/screenshots/lumen-home.jpg)](my-tv/LUMEN.md) | [![Midnight Glass: the glass top buttons, the now playing card, the dock and Continue watching](my-tv/screenshots/home-now-playing.jpg)](my-tv/MIDNIGHT-GLASS.md) |
+| **[Lumen](my-tv/LUMEN.md)**: Home as a lock screen. A large time over a wallpaper that changes once a day, one line of Continue watching tiles, a seven-app dock and a song card that keeps the last song, paused. Made to stay light on the TV's GPU. | **[Midnight Glass](my-tv/MIDNIGHT-GLASS.md)**: liquid glass. A glass header, top buttons and dock, a hero banner for every app, Continue watching banners with filter chips and an upright now playing card. |
+
+Both themes run on the same build of the launcher, with the same app art and the same live screensaver. Switching
+takes one command and no reinstall:
+
+```bash
+TV_HOST=<tv ip>:<port> bash my-tv/push-art.sh lumen            # or midnight-glass
+```
+
+### What the fork adds to the launcher
+
+Every feature is a switch in [`config.xml`](launcher/app/src/main/res/values/config.xml) or a theme's `config.json`.
+
+| Feature | Switch | What it does |
+|---|---|---|
+| **Immersive Home** | `immersive_home` | Home as a lock screen: the date over a large time blended into the wallpaper or the focused app's picture, clear glass buttons in the corners and a soft intro when the TV turns on. Pictures crossfade from one app to the next. |
+| **Continue watching** | `continue_watching` | Whatever you left part-watched in Netflix, YouTube, Stremio and the like, with its poster and the time left. Stremio's new episodes show up too, after a one-time link with a code. Filter chips pick All, Stremio, YouTube or Other. Hold OK on a card to remove it. |
+| **Now playing** | `now_playing` | The song Spotify is playing, as a card with its cover and progress, on Home and on the screensaver. In Lumen it stays with the last song, marked Paused. Hold OK to hide it until you open the music app again. |
+| **Live screensaver** | `saver_weather` | Set `LiveSaverDream` as the TV's screensaver for looping 4K scenes with the clock and the weather, and Continue watching cards that OK jumps back into. Music keeps playing without a cut, and the TV stays awake while a song plays. |
+| **Liquid glass** | `liquid_glass`, `top_bar_grid` | A glass header, top bar and dock band that show a softened copy of the picture behind them, with square glass buttons for inputs, network, settings and all apps. |
+| **Hero banners and icons** | `hero_banners`, `icon_grid`, `grid_glow` | A full-screen picture and a glossy icon for each dock app, read from the theme folder on the TV. |
+| **More** | `apps_popup`, `input_tiles` | All apps in a popup, tiles that switch to a TV input (a PlayStation tile here), your own fonts from the theme folder, and support for the TCL remote's Settings button. |
+
+To put it on a TV: build and install the launcher with `launcher/build-and-install.sh`, run `push-art.sh` with the
+theme you want, then follow the theme's guide to turn on Continue watching, the song card and the screensaver.
+
+The rest of this README is the main CleanYourTV project's.
+
 ## Start here
 
 | You have | Go to |
